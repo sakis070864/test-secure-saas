@@ -102,8 +102,21 @@ function LandingContent() {
               <br />
               <span className="text-white">Before Hackers Do</span>
             </h1>
-            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-4 leading-relaxed">
-              From quick free checks to full penetration assessments. Choose your level of protection.
+            <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-4 leading-relaxed">
+              Our engine <span className="text-cyan-400 font-semibold">crawls every page</span> of your site,{' '}
+              <span className="text-yellow-400 font-semibold">maps every link, form & parameter</span>,{' '}
+              then launches <span className="text-red-400 font-semibold">real attack payloads</span> —{' '}
+              <span className="text-orange-400 font-semibold">SQL injection</span>,{' '}
+              <span className="text-pink-400 font-semibold">XSS</span>,{' '}
+              <span className="text-purple-400 font-semibold">open redirects</span>,{' '}
+              <span className="text-emerald-400 font-semibold">path traversal</span> — against every endpoint.{' '}
+              It scans your <span className="text-blue-400 font-semibold">SSL, DNS, ports & subdomains</span>,{' '}
+              fingerprints your <span className="text-teal-400 font-semibold">server stack</span>,{' '}
+              and delivers a{' '}
+              <span className="bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent font-bold">
+                professional audit report
+              </span>{' '}
+              — all in minutes.
             </p>
           </div>
         </section>
