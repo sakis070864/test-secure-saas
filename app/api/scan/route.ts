@@ -4,6 +4,7 @@ import { performDeepScan } from '@/lib/scanner';
 import { createToken } from '@/lib/emailValidator';
 import { sendVerificationEmail } from '@/lib/mailer';
 import { saveLeadToSheet } from '@/lib/googleSheets';
+import { verifyAdminToken } from '@/app/api/admin-auth/route';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -14,9 +15,10 @@ export async function POST(request: Request) {
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 });
 
-    // Verify payment was made (skip in test mode)
+    // Verify payment was made (skip in test/admin mode)
     const isTestMode = sessionId === 'TEST_MODE' && process.env.ALLOW_TEST_MODE === 'true';
-    if (!isTestMode) {
+    const isAdmin = typeof sessionId === 'string' && verifyAdminToken(sessionId);
+    if (!isTestMode && !isAdmin) {
       if (!sessionId) return NextResponse.json({ error: 'Payment required' }, { status: 403 });
       try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
