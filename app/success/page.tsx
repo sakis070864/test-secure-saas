@@ -101,7 +101,7 @@ function SuccessContent() {
       const newPage = () => { doc.addPage(); y = 20; };
       // Title
       doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
-      doc.text('AthanDeepScan — Full Site Report', m, y); y += 7;
+      doc.text('ABCSecure — Full Site Security Report', m, y); y += 7;
       doc.setFontSize(9); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]); doc.setFont('helvetica','normal');
       doc.text(`${url} | ${new Date().toLocaleDateString()} | ${result.crawlStats.totalPages} pages crawled | ${result.crawlStats.totalForms} forms tested`, m, y); y += 4;
       doc.setDrawColor(C.light[0],C.light[1],C.light[2]); doc.line(m, y, pw-m, y); y += 8;
@@ -171,7 +171,7 @@ function SuccessContent() {
       for (let p=1;p<=tp;p++) {
         doc.setPage(p); doc.setDrawColor(C.light[0],C.light[1],C.light[2]); doc.line(m,285,pw-m,285);
         doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
-        doc.text('ATHANDEEPSCAN — Full-Site Deep Penetration Report — Athan Security', m, 290);
+        doc.text('ABCSECURE — Full-Site Deep Penetration Report — abcsecure.com', m, 290);
         doc.text(`Page ${p}/${tp}`, pw-m, 290, { align:'right' });
       }
       const domain = new URL(url.startsWith('http')?url:`https://${url}`).hostname.replace(/\./g,'-');
@@ -216,7 +216,7 @@ function SuccessContent() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShieldAlert className="w-6 h-6 text-red-500" />
-            <span className="font-bold text-lg">Athan<span className="text-red-500">DeepScan</span> — Full Site Report</span>
+            <span className="font-bold text-lg">ABC<span className="text-red-500">Secure</span> — Full Site Report</span>
           </div>
           <button onClick={handlePDF} disabled={pdfLoading} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
             {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download PDF
@@ -304,7 +304,7 @@ function SuccessContent() {
           </div>
         )}
       </main>
-      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">ATHANDEEPSCAN — Full-Site Deep Penetration Report — Athan Security</footer>
+      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">ABCSECURE — Full-Site Deep Penetration Report — abcsecure.com</footer>
     </div>
   );
 }

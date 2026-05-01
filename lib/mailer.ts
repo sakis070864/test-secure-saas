@@ -21,13 +21,13 @@ export async function sendVerificationEmail(clientEmail: string, targetUrl: stri
   if (!transporter) return false;
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || '"Athan Security" <noreply@sakis-athan.com>',
+    from: process.env.EMAIL_FROM || '"ABCSecure" <noreply@abcsecure.com>',
     to: clientEmail,
     subject: `Unlock Your Deep Security Report: ${targetUrl}`,
     html: `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e2e8f0; padding: 40px; border-radius: 12px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #3b82f6; margin: 0; font-size: 24px;">Athan Security</h1>
+          <h1 style="color: #3b82f6; margin: 0; font-size: 24px;">ABCSecure</h1>
           <p style="color: #64748b; font-size: 12px; margin-top: 4px;">Deep Penetration Security Assessment</p>
         </div>
         
@@ -56,7 +56,7 @@ export async function sendVerificationEmail(clientEmail: string, targetUrl: stri
         
         <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0;">
         <p style="color: #475569; font-size: 11px; text-align: center;">
-          Athan Security &bull; sakis-athan.com &bull; This is an automated security assessment
+          ABCSecure &bull; abcsecure.com &bull; This is an automated security assessment
         </p>
       </div>
     `,
@@ -77,18 +77,18 @@ export async function sendReportEmail(clientEmail: string, pdfBuffer: Buffer, ta
   if (!transporter) return false;
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || '"Athan Security" <noreply@sakis-athan.com>',
+    from: process.env.EMAIL_FROM || '"ABCSecure" <noreply@abcsecure.com>',
     to: clientEmail,
     subject: `Deep Security Assessment: ${targetUrl}`,
     html: `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e2e8f0; padding: 40px; border-radius: 12px;">
-        <h1 style="color: #3b82f6; text-align: center;">Athan Security</h1>
+        <h1 style="color: #3b82f6; text-align: center;">ABCSecure</h1>
         <h2 style="color: #f1f5f9;">Your Deep Security Report</h2>
         <p style="color: #94a3b8;">
           Your comprehensive penetration report for <strong style="color: #f1f5f9;">${targetUrl}</strong> is attached as a PDF.
         </p>
         <hr style="border: none; border-top: 1px solid #1e293b;">
-        <p style="color: #475569; font-size: 11px; text-align: center;">Athan Security &bull; sakis-athan.com</p>
+        <p style="color: #475569; font-size: 11px; text-align: center;">ABCSecure &bull; abcsecure.com</p>
       </div>
     `,
     attachments: [{

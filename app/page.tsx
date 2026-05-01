@@ -73,9 +73,9 @@ function LandingContent() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShieldAlert className="w-7 h-7 text-red-500" />
-            <span className="text-xl font-bold tracking-tight">Athan<span className="text-red-500">DeepScan</span></span>
+            <span className="text-xl font-bold tracking-tight">ABC<span className="text-red-500">Secure</span></span>
           </div>
-          <a href="https://sakis-athan.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">by Sakis Athanasopoulos</a>
+          <a href="https://abcsecure.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">Enterprise Security Audits</a>
         </div>
       </nav>
 
@@ -248,8 +248,8 @@ function LandingContent() {
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-slate-600">
-        <p>© {new Date().getFullYear()} Athan Security — Athanasios (Sakis) Athanasopoulos</p>
-        <p className="mt-1">Professional Cybersecurity Assessment Services</p>
+        <p>© {new Date().getFullYear()} ABCSecure — Enterprise Cybersecurity</p>
+        <p className="mt-1">Professional Deep Security Assessment Services</p>
       </footer>
     </div>
   );

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
 
-    const origin = request.headers.get('origin') || 'https://deepscan.sakis-athan.com';
+    const origin = request.headers.get('origin') || 'https://abcsecure.com';
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],

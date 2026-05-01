@@ -9,7 +9,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [adminToken, setAdminToken] = useState('');
   const [url, setUrl] = useState('');
-  const [email, setEmail] = useState('admin@sakis-athan.com');
+  const [email, setEmail] = useState('admin@abcsecure.com');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,7 +51,7 @@ export default function AdminPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 to-red-800 mb-4 shadow-lg shadow-red-500/20">
             <ShieldAlert className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-black">Athan<span className="text-red-500">DeepScan</span></h1>
+          <h1 className="text-2xl font-black">ABC<span className="text-red-500">Secure</span></h1>
           <p className="text-slate-500 text-sm mt-1">Admin Panel</p>
         </div>
 
@@ -141,7 +141,7 @@ export default function AdminPage() {
         )}
 
         <p className="text-center text-xs text-slate-700 mt-6">
-          AthanDeepScan Admin • Athan Security
+          ABCSecure Admin • abcsecure.com
         </p>
       </div>
     </div>

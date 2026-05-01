@@ -85,7 +85,7 @@ async function generatePDF(result: DeepScanResult) {
   doc.setDrawColor(C.light[0], C.light[1], C.light[2]);
   doc.setFontSize(20); doc.setFont('helvetica', 'bold');
   doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-  doc.text('AthanDeepScan', margin, y);
+  doc.text('ABCSecure', margin, y);
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
   doc.setTextColor(C.red[0], C.red[1], C.red[2]);
   doc.text('Deep Penetration Security Report', margin + 60, y);
@@ -235,12 +235,12 @@ async function generatePDF(result: DeepScanResult) {
     doc.line(margin, 285, pw - margin, 285);
     doc.setFontSize(6); doc.setFont('helvetica', 'normal');
     doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
-    doc.text('CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security', margin, 290);
+    doc.text('ABCSECURE — Deep Penetration Security Report — abcsecure.com', margin, 290);
     doc.text(`Page ${p} of ${totalPages}`, pw - margin, 290, { align: 'right' });
   }
 
   const domain = new URL(result.url).hostname.replace(/\./g, '-');
-  doc.save(`DeepScan-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`ABCSecure-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -302,7 +302,7 @@ export default function ReportPage({ params }: { params: Promise<{ token: string
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShieldAlert className="w-6 h-6 text-red-500" />
-            <span className="font-bold text-lg">Athan<span className="text-red-500">DeepScan</span> — Full Report</span>
+            <span className="font-bold text-lg">ABC<span className="text-red-500">Secure</span> — Full Report</span>
           </div>
           <button onClick={handlePDF} disabled={pdfLoading} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
             {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -356,7 +356,7 @@ export default function ReportPage({ params }: { params: Promise<{ token: string
           </div>
         )}
       </main>
-      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security</footer>
+      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">ABCSECURE — Deep Penetration Security Report — abcsecure.com</footer>
     </div>
   );
 }

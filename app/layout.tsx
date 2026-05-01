@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AthanDeepScan — Enterprise Security Audit | $50 Per Scan",
-  description: "150+ automated security checks. Full penetration-style audit for your website. Security headers, exposed files, admin panels, cookie security, GPC compliance, and more. Download-ready PDF report.",
+  title: "ABCSecure — Enterprise Deep Security Audit | $199 Per Scan",
+  description: "500+ automated security checks across your entire site. Deep spider crawling, SQL injection, XSS, infrastructure scanning, SSL/TLS, DNS analysis, and more. Full penetration-style PDF report.",
   icons: {
     icon: "/icon.png",
     apple: "/apple-icon.png",
