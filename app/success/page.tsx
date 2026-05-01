@@ -180,9 +180,9 @@ function SuccessContent() {
     finally { setPdfLoading(false); }
   };
 
-  if (!sessionId) return (
+  if (!sessionId || !url) return (
     <div className="min-h-screen bg-[#030712] flex items-center justify-center text-white">
-      <div className="text-center p-8"><p>Invalid session.</p>
+      <div className="text-center p-8"><p>Invalid session. Missing session_id or url parameter.</p>
         <button onClick={() => router.push('/')} className="mt-4 bg-red-600 px-6 py-2 rounded-xl">Go Back</button>
       </div>
     </div>

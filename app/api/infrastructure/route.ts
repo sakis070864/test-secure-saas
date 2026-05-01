@@ -10,15 +10,18 @@ export async function POST(request: Request) {
 
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
 
-    // Verify payment
-    if (!sessionId) return NextResponse.json({ error: 'Payment required' }, { status: 403 });
-    try {
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (session.payment_status !== 'paid') {
-        return NextResponse.json({ error: 'Payment not completed' }, { status: 403 });
+    // Verify payment (skip in test mode)
+    const isTestMode = sessionId === 'TEST_MODE' && process.env.ALLOW_TEST_MODE === 'true';
+    if (!isTestMode) {
+      if (!sessionId) return NextResponse.json({ error: 'Payment required' }, { status: 403 });
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.payment_status !== 'paid') {
+          return NextResponse.json({ error: 'Payment not completed' }, { status: 403 });
+        }
+      } catch {
+        return NextResponse.json({ error: 'Invalid payment session' }, { status: 403 });
       }
-    } catch {
-      return NextResponse.json({ error: 'Invalid payment session' }, { status: 403 });
     }
 
     // Run infrastructure scan (SSL, DNS, subdomains, ports)
