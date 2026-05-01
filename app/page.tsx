@@ -121,6 +121,123 @@ function LandingContent() {
           </div>
         </section>
 
+        {/* ═══ HOW IT WORKS — 4 PHASES ═══ */}
+        <section className="pb-20">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <h2 className="text-2xl sm:text-3xl font-black text-center mb-3">How The Scanner Works</h2>
+            <p className="text-sm text-slate-500 text-center mb-12 max-w-xl mx-auto">Our automated 4-phase pipeline scans, crawls, attacks, and audits your entire infrastructure — so you don&apos;t have to.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+
+              {/* PHASE 1 */}
+              <div className="relative bg-gradient-to-br from-red-500/10 to-red-900/5 border border-red-500/20 rounded-2xl p-6 hover:border-red-500/40 transition-all group">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 font-black text-sm group-hover:bg-red-500/30 transition-colors">1</div>
+                  <div>
+                    <div className="text-xs text-red-400 font-bold uppercase tracking-wider">Phase 1</div>
+                    <h3 className="text-lg font-bold text-white">Security Scan Engine</h3>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start gap-2"><span className="text-red-400 mt-0.5">▸</span> Checks <span className="text-white font-medium">15 security headers</span> (HSTS, CSP, X-Frame, CORS...)</li>
+                  <li className="flex items-start gap-2"><span className="text-red-400 mt-0.5">▸</span> Probes <span className="text-white font-medium">69 sensitive files</span> (.env, .git, backup.sql, SSH keys...)</li>
+                  <li className="flex items-start gap-2"><span className="text-red-400 mt-0.5">▸</span> Hunts <span className="text-white font-medium">20 admin panels</span> (wp-admin, phpMyAdmin, cPanel...)</li>
+                  <li className="flex items-start gap-2"><span className="text-red-400 mt-0.5">▸</span> Tests <span className="text-white font-medium">5 dangerous HTTP methods</span> (PUT, DELETE, TRACE...)</li>
+                  <li className="flex items-start gap-2"><span className="text-red-400 mt-0.5">▸</span> Audits <span className="text-white font-medium">cookies, CORS, info disclosure, HTML security</span></li>
+                  <li className="flex items-start gap-2"><span className="text-red-400 mt-0.5">▸</span> Fingerprints <span className="text-white font-medium">31 technologies</span> &amp; detects <span className="text-white font-medium">29 trackers</span></li>
+                </ul>
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Available in: Free, Standard, Deep</span>
+                  <span className="text-xs font-bold text-red-400">~50–150 checks</span>
+                </div>
+              </div>
+
+              {/* PHASE 2 */}
+              <div className="relative bg-gradient-to-br from-cyan-500/10 to-cyan-900/5 border border-cyan-500/20 rounded-2xl p-6 hover:border-cyan-500/40 transition-all group">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 font-black text-sm group-hover:bg-cyan-500/30 transition-colors">2</div>
+                  <div>
+                    <div className="text-xs text-cyan-400 font-bold uppercase tracking-wider">Phase 2</div>
+                    <h3 className="text-lg font-bold text-white">Spider Crawler</h3>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">▸</span> Crawls up to <span className="text-white font-medium">50 pages</span>, <span className="text-white font-medium">5 levels deep</span></li>
+                  <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">▸</span> Discovers every <span className="text-white font-medium">link, form &amp; input field</span></li>
+                  <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">▸</span> Maps all <span className="text-white font-medium">URL parameters</span> (query strings)</li>
+                  <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">▸</span> Catalogs all <span className="text-white font-medium">JavaScript files</span> loaded</li>
+                  <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">▸</span> Separates <span className="text-white font-medium">internal vs external links</span></li>
+                  <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">▸</span> Builds a <span className="text-white font-medium">complete attack surface map</span></li>
+                </ul>
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Deep Scan only ($99)</span>
+                  <span className="text-xs font-bold text-cyan-400">50 pages mapped</span>
+                </div>
+              </div>
+
+              {/* PHASE 3 */}
+              <div className="relative bg-gradient-to-br from-orange-500/10 to-orange-900/5 border border-orange-500/20 rounded-2xl p-6 hover:border-orange-500/40 transition-all group">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 font-black text-sm group-hover:bg-orange-500/30 transition-colors">3</div>
+                  <div>
+                    <div className="text-xs text-orange-400 font-bold uppercase tracking-wider">Phase 3</div>
+                    <h3 className="text-lg font-bold text-white">Attack Engine</h3>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start gap-2"><span className="text-orange-400 mt-0.5">▸</span> <span className="text-white font-medium">SQL Injection</span> — 5 payloads, 19 error signatures</li>
+                  <li className="flex items-start gap-2"><span className="text-orange-400 mt-0.5">▸</span> <span className="text-white font-medium">Cross-Site Scripting (XSS)</span> — 3 reflected payloads per form</li>
+                  <li className="flex items-start gap-2"><span className="text-orange-400 mt-0.5">▸</span> <span className="text-white font-medium">Open Redirects</span> — tests 11+ redirect parameters</li>
+                  <li className="flex items-start gap-2"><span className="text-orange-400 mt-0.5">▸</span> <span className="text-white font-medium">Path Traversal / LFI</span> — probes for /etc/passwd, win.ini</li>
+                  <li className="flex items-start gap-2"><span className="text-orange-400 mt-0.5">▸</span> <span className="text-white font-medium">IDOR</span> — tests if changing IDs exposes other users&apos; data</li>
+                  <li className="flex items-start gap-2"><span className="text-orange-400 mt-0.5">▸</span> Runs <span className="text-white font-medium">header checks on every crawled page</span></li>
+                </ul>
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Deep Scan only ($99)</span>
+                  <span className="text-xs font-bold text-orange-400">Real attack simulation</span>
+                </div>
+              </div>
+
+              {/* PHASE 4 */}
+              <div className="relative bg-gradient-to-br from-purple-500/10 to-purple-900/5 border border-purple-500/20 rounded-2xl p-6 hover:border-purple-500/40 transition-all group">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 font-black text-sm group-hover:bg-purple-500/30 transition-colors">4</div>
+                  <div>
+                    <div className="text-xs text-purple-400 font-bold uppercase tracking-wider">Phase 4</div>
+                    <h3 className="text-lg font-bold text-white">Infrastructure Audit</h3>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-slate-400">
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="text-white font-medium">SSL/TLS</span> — HTTPS, HSTS, preload, redirect chain</li>
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="text-white font-medium">DNS Security</span> — SPF, DKIM, DMARC, MX, CAA records</li>
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="text-white font-medium">90+ subdomains</span> scanned (dev, staging, admin, db...)</li>
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="text-white font-medium">19 ports</span> scanned (SSH, MySQL, RDP, MongoDB, Redis...)</li>
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> Flags <span className="text-white font-medium">dangerous exposed services</span></li>
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> Delivers a <span className="text-white font-medium">20+ page professional PDF report</span></li>
+                </ul>
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Deep Scan only ($99)</span>
+                  <span className="text-xs font-bold text-purple-400">Full infrastructure map</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Connection Flow */}
+            <div className="flex items-center justify-center gap-2 mt-8 text-xs text-slate-500">
+              <span className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 font-bold border border-red-500/20">Phase 1</span>
+              <ArrowRight className="w-4 h-4 text-slate-600" />
+              <span className="px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20">Phase 2</span>
+              <ArrowRight className="w-4 h-4 text-slate-600" />
+              <span className="px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 font-bold border border-orange-500/20">Phase 3</span>
+              <ArrowRight className="w-4 h-4 text-slate-600" />
+              <span className="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">Phase 4</span>
+            </div>
+            <p className="text-center text-xs text-slate-600 mt-3">Each phase feeds into the next — more pages = more forms = more attack vectors = more checks</p>
+
+          </div>
+        </section>
+
         {/* ═══ 3 PRICING CARDS ═══ */}
         <section id="pricing" className="pb-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
