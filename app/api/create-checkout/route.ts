@@ -19,10 +19,10 @@ export async function POST(request: Request) {
         price_data: {
           currency: 'usd',
           product_data: {
-            name: 'Deep Penetration Security Audit',
-            description: `Full 150+ check security report for ${url}`,
+            name: 'Deep Penetration Security Audit — Full Site',
+            description: `Full-site spider + attack engine scan (500-2,000+ checks) for ${url}`,
           },
-          unit_amount: 5000, // $50.00
+          unit_amount: 19900, // $199.00
         },
         quantity: 1,
       }],

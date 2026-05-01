@@ -1,21 +1,8 @@
 'use client';
-
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Download, Mail } from 'lucide-react';
-
-type CheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
-type DeepScanResult = {
-  url: string; grade: string; score: number;
-  totalChecks: number; passed: number; failed: number; warnings: number;
-  headers: CheckResult[]; exposedFiles: CheckResult[]; adminPanels: CheckResult[];
-  cookies: CheckResult[]; cors: CheckResult[]; infoDisclosure: CheckResult[];
-  httpMethods: CheckResult[]; htmlAnalysis: CheckResult[];
-  technologies: Array<{ name: string; category: string }>;
-  trackers: { found: number; list: Array<{ name: string; type: string }> };
-  gpc: { supported: boolean; details: string };
-  timestamp: string;
-};
+import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Download, Globe, Server, Wifi, Bug, Shield } from 'lucide-react';
+import { runFullScan, type ScanProgress, type FullScanResult } from '@/lib/useScanOrchestrator';
 
 function StatusIcon({ status }: { status: string }) {
   if (status === 'pass') return <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />;
@@ -24,18 +11,15 @@ function StatusIcon({ status }: { status: string }) {
   return <Info className="w-4 h-4 text-blue-400 shrink-0" />;
 }
 
-function CheckSection({ title, icon, checks, defaultOpen = false }: { title: string; icon: string; checks: CheckResult[]; defaultOpen?: boolean }) {
+function Section({ title, icon, checks, open: defaultOpen = false }: { title: string; icon: React.ReactNode; checks: any[]; open?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
-  const fails = checks.filter(c => c.status === 'fail').length;
-  const warns = checks.filter(c => c.status === 'warn').length;
-  const passes = checks.filter(c => c.status === 'pass').length;
+  const fails = checks.filter((c: any) => c.status === 'fail').length;
+  const warns = checks.filter((c: any) => c.status === 'warn').length;
+  const passes = checks.filter((c: any) => c.status === 'pass').length;
   return (
     <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-5 text-left hover:bg-white/[0.02] transition-colors">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">{icon}</span><span className="font-bold">{title}</span>
-          <span className="text-xs text-slate-500">({checks.length} checks)</span>
-        </div>
+        <div className="flex items-center gap-3">{icon}<span className="font-bold">{title}</span><span className="text-xs text-slate-500">({checks.length})</span></div>
         <div className="flex items-center gap-2 text-xs">
           {fails > 0 && <span className="px-2 py-0.5 bg-red-500/10 text-red-500 rounded-full">{fails} FAIL</span>}
           {warns > 0 && <span className="px-2 py-0.5 bg-yellow-500/10 text-yellow-500 rounded-full">{warns} WARN</span>}
@@ -45,14 +29,14 @@ function CheckSection({ title, icon, checks, defaultOpen = false }: { title: str
       </button>
       {open && (
         <div className="border-t border-white/5 divide-y divide-white/5">
-          {checks.map((c, i) => (
+          {checks.map((c: any, i: number) => (
             <div key={i} className={`flex items-start gap-3 px-5 py-3 ${c.status === 'fail' ? 'bg-red-500/5' : c.status === 'warn' ? 'bg-yellow-500/5' : ''}`}>
               <StatusIcon status={c.status} />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium truncate">{c.name}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{c.detail}</div>
               </div>
-              {c.risk !== 'None' && <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${c.risk === 'Critical' ? 'bg-red-500/20 text-red-400' : c.risk === 'High' ? 'bg-orange-500/20 text-orange-400' : c.risk === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>{c.risk}</span>}
+              {c.risk && c.risk !== 'None' && <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${c.risk === 'Critical' ? 'bg-red-500/20 text-red-400' : c.risk === 'High' ? 'bg-orange-500/20 text-orange-400' : c.risk === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>{c.risk}</span>}
             </div>
           ))}
         </div>
@@ -61,200 +45,145 @@ function CheckSection({ title, icon, checks, defaultOpen = false }: { title: str
   );
 }
 
-// ─── PDF Generator ─────────────────────────────────────────────────────────
-async function generatePDF(result: DeepScanResult) {
-  const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF('p', 'mm', 'a4');
-  const pw = 210; const margin = 15; const cw = pw - margin * 2; let y = 20;
-  const C = {
-    black: [20, 20, 20] as number[], dark: [50, 50, 50] as number[], mid: [120, 120, 120] as number[],
-    light: [200, 200, 200] as number[], sectionBg: [240, 242, 245] as number[],
-    red: [220, 38, 38] as number[], green: [22, 163, 74] as number[],
-    yellow: [180, 130, 0] as number[], blue: [37, 99, 235] as number[],
-    orange: [234, 88, 12] as number[], purple: [124, 58, 237] as number[],
-  };
-  doc.setDrawColor(C.light[0], C.light[1], C.light[2]);
-  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-  doc.text('AthanDeepScan', margin, y);
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
-  doc.text('Deep Penetration Security Report', margin + 60, y);
-  y += 6;
-  doc.setFontSize(9); doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
-  doc.text(`${result.url}  |  ${new Date(result.timestamp).toLocaleDateString()}`, margin, y);
-  y += 3; doc.line(margin, y, pw - margin, y); y += 8;
-  const gc2 = result.grade === 'A' ? C.green : result.grade === 'B' ? C.blue : result.grade === 'C' ? C.yellow : C.red;
-  doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
-  doc.roundedRect(margin, y, cw, 22, 3, 3, 'F');
-  doc.setFontSize(28); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(gc2[0], gc2[1], gc2[2]);
-  doc.text(result.grade, margin + 12, y + 16);
-  doc.setFontSize(12); doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-  doc.text(`Score: ${result.score}/100`, margin + 35, y + 12);
-  doc.setFontSize(8); doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
-  doc.text(`${result.totalChecks} checks  |  `, margin + 35, y + 18);
-  const statsX = margin + 35;
-  doc.setTextColor(C.green[0], C.green[1], C.green[2]); doc.text(`${result.passed} passed`, statsX + 22, y + 18);
-  doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]); doc.text('  |  ', statsX + 40, y + 18);
-  doc.setTextColor(C.red[0], C.red[1], C.red[2]); doc.text(`${result.failed} failed`, statsX + 45, y + 18);
-  doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]); doc.text('  |  ', statsX + 62, y + 18);
-  doc.setTextColor(C.yellow[0], C.yellow[1], C.yellow[2]); doc.text(`${result.warnings} warnings`, statsX + 67, y + 18);
-  y += 30;
-  function newPage() { doc.addPage(); y = 20; }
-  function addSection(title: string, checks: CheckResult[]) {
-    const fails = checks.filter(c => c.status === 'fail').length;
-    const warns = checks.filter(c => c.status === 'warn').length;
-    if (y > 260) newPage();
-    doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
-    doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-    doc.text(title, margin + 3, y + 5.5);
-    doc.setFontSize(7); doc.setFont('helvetica', 'normal');
-    doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
-    doc.text(`${checks.length} checks`, margin + cw - 50, y + 5.5);
-    if (fails > 0) { doc.setTextColor(C.red[0], C.red[1], C.red[2]); doc.text(`${fails} FAIL`, margin + cw - 30, y + 5.5); }
-    if (warns > 0) { doc.setTextColor(C.yellow[0], C.yellow[1], C.yellow[2]); doc.text(`${warns} WARN`, margin + cw - 15, y + 5.5); }
-    y += 11;
-    for (const c of checks) {
-      if (y > 280) newPage();
-      const sc = c.status === 'fail' ? C.red : c.status === 'warn' ? C.yellow : c.status === 'pass' ? C.green : C.blue;
-      const icon = c.status === 'fail' ? 'FAIL' : c.status === 'warn' ? 'WARN' : c.status === 'pass' ? 'PASS' : 'INFO';
-      doc.setFontSize(6); doc.setFont('helvetica', 'bold');
-      doc.setTextColor(sc[0], sc[1], sc[2]); doc.text(icon, margin + 2, y);
-      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-      doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-      const name = c.name.length > 45 ? c.name.substring(0, 45) + '...' : c.name;
-      doc.text(name, margin + 14, y);
-      if (c.risk !== 'None') {
-        const rc = c.risk === 'Critical' ? C.red : c.risk === 'High' ? C.orange : c.risk === 'Medium' ? C.yellow : C.blue;
-        doc.setFontSize(6); doc.setFont('helvetica', 'normal');
-        doc.setTextColor(rc[0], rc[1], rc[2]); doc.text(`[${c.risk}]`, margin + cw - 15, y);
-      }
-      y += 3.5;
-      doc.setFontSize(6); doc.setFont('helvetica', 'normal');
-      doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
-      const detail = c.detail.length > 100 ? c.detail.substring(0, 100) + '...' : c.detail;
-      doc.text(detail, margin + 14, y); y += 5;
-    }
-    y += 2;
-  }
-  addSection('Security Headers', result.headers);
-  addSection('Exposed Files & Paths', result.exposedFiles);
-  addSection('Admin Panels', result.adminPanels);
-  addSection('Cookie Security', result.cookies);
-  addSection('CORS Policy', result.cors);
-  addSection('Information Disclosure', result.infoDisclosure);
-  addSection('HTTP Methods', result.httpMethods);
-  addSection('HTML Content Analysis', result.htmlAnalysis);
-  if (result.technologies.length > 0) {
-    if (y > 260) newPage();
-    doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
-    doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-    doc.text(`Detected Technologies (${result.technologies.length})`, margin + 3, y + 5.5); y += 11;
-    for (const t of result.technologies) {
-      if (y > 280) newPage();
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-      doc.setTextColor(C.purple[0], C.purple[1], C.purple[2]); doc.text(`• ${t.name}`, margin + 5, y);
-      doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]); doc.text(`(${t.category})`, margin + 5 + doc.getTextWidth(`• ${t.name} `), y); y += 5;
-    }
-    y += 2;
-  }
-  if (result.trackers.found > 0) {
-    if (y > 260) newPage();
-    doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
-    doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.setTextColor(C.black[0], C.black[1], C.black[2]);
-    doc.text(`Pre-Consent Trackers (${result.trackers.found})`, margin + 3, y + 5.5); y += 11;
-    for (const t of result.trackers.list) {
-      if (y > 280) newPage();
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-      doc.setTextColor(C.red[0], C.red[1], C.red[2]); doc.text(`• ${t.name}`, margin + 5, y);
-      doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]); doc.text(` — ${t.type}`, margin + 5 + doc.getTextWidth(`• ${t.name}`), y); y += 5;
-    }
-  }
-  const totalPages = doc.getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    doc.setDrawColor(C.light[0], C.light[1], C.light[2]); doc.line(margin, 285, pw - margin, 285);
-    doc.setFontSize(6); doc.setFont('helvetica', 'normal');
-    doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
-    doc.text('CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security', margin, 290);
-    doc.text(`Page ${p} of ${totalPages}`, pw - margin, 290, { align: 'right' });
-  }
-  const domain = new URL(result.url).hostname.replace(/\./g, '-');
-  doc.save(`DeepScan-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`);
+function ProgressBar({ progress }: { progress: ScanProgress }) {
+  const phaseLabels: Record<string, string> = { idle: 'Initializing', homepage: 'Phase 1/4 — Homepage Audit', spider: 'Phase 2/4 — Crawling Site', attack: 'Phase 3/4 — Vulnerability Testing', infra: 'Phase 4/4 — Infrastructure Scan', done: 'Complete', error: 'Error' };
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white/5 rounded-2xl border border-white/10 p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+          <div>
+            <p className="font-bold text-lg">{phaseLabels[progress.phase]}</p>
+            <p className="text-sm text-slate-400">{progress.message}</p>
+          </div>
+        </div>
+        <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-600 to-red-400 h-full rounded-full transition-all duration-500" style={{ width: `${progress.percent}%` }} />
+        </div>
+        <div className="grid grid-cols-3 gap-4 text-center text-sm">
+          <div><div className="text-2xl font-black text-red-400">{progress.pagesFound}</div><div className="text-slate-500">Pages Found</div></div>
+          <div><div className="text-2xl font-black text-yellow-400">{progress.formsFound}</div><div className="text-slate-500">Forms Found</div></div>
+          <div><div className="text-2xl font-black text-green-400">{progress.pagesAttacked}/{progress.totalPages}</div><div className="text-slate-500">Pages Tested</div></div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-// ═══════════════════════════════════════════════════════════════
 function SuccessContent() {
-  const searchParams = useSearchParams();
+  const sp = useSearchParams();
   const router = useRouter();
-  const sessionId = searchParams.get('session_id');
-  const url = searchParams.get('url') || '';
-  const email = searchParams.get('email') || '';
-
-  const [result, setResult] = useState<DeepScanResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const sessionId = sp.get('session_id');
+  const url = sp.get('url') || '';
+  const email = sp.get('email') || '';
+  const [result, setResult] = useState<FullScanResult | null>(null);
+  const [progress, setProgress] = useState<ScanProgress>({ phase: 'idle', message: 'Initializing...', pagesFound: 0, formsFound: 0, paramsFound: 0, pagesAttacked: 0, totalPages: 0, percent: 0 });
   const [error, setError] = useState('');
-  const [scanPhase, setScanPhase] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
-  const scanStarted = useRef(false);
+  const started = useRef(false);
 
   useEffect(() => {
-    if (!sessionId || !url || !email || scanStarted.current) return;
-    scanStarted.current = true;
-
-    const phases = ['Payment verified ✓', 'Resolving DNS...', 'Checking 15 security headers...', 'Probing 67 sensitive files...', 'Scanning 20 admin panels...', 'Testing HTTP methods...', 'Analyzing cookies & CORS...', 'Fingerprinting technologies...', 'Scanning trackers...', 'Analyzing HTML content...', 'Calculating risk score...'];
-    let i = 0;
-    const interval = setInterval(() => { setScanPhase(phases[i % phases.length]); i++; }, 2500);
-
-    fetch('/api/scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, email, sessionId }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) setError(data.error);
-        else setResult(data.result);
-      })
-      .catch(() => setError('Scan failed. Please contact sakis@sakis-athan.com'))
-      .finally(() => { setLoading(false); clearInterval(interval); });
-
-    return () => clearInterval(interval);
+    if (!sessionId || !url || !email || started.current) return;
+    started.current = true;
+    runFullScan(url, email, sessionId, setProgress)
+      .then(r => setResult(r))
+      .catch(e => setError(e.message || 'Scan failed'));
   }, [sessionId, url, email]);
-
-  const gc = (g: string) => g === 'A' ? 'text-green-500' : g === 'B' ? 'text-blue-500' : g === 'C' ? 'text-yellow-500' : g === 'D' ? 'text-orange-500' : 'text-red-500';
 
   const handlePDF = async () => {
     if (!result) return;
     setPdfLoading(true);
-    try { await generatePDF(result); } catch (e) { console.error('PDF error:', e); }
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const m = 15; const pw = 210; const cw = pw - m * 2; let y = 20;
+      const C = { black: [20,20,20], mid: [120,120,120], red: [220,38,38], green: [22,163,74], yellow: [180,130,0], blue: [37,99,235], orange: [234,88,12], bg: [240,242,245], light: [200,200,200] };
+      const newPage = () => { doc.addPage(); y = 20; };
+      // Title
+      doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
+      doc.text('AthanDeepScan — Full Site Report', m, y); y += 7;
+      doc.setFontSize(9); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]); doc.setFont('helvetica','normal');
+      doc.text(`${url} | ${new Date().toLocaleDateString()} | ${result.crawlStats.totalPages} pages crawled | ${result.crawlStats.totalForms} forms tested`, m, y); y += 4;
+      doc.setDrawColor(C.light[0],C.light[1],C.light[2]); doc.line(m, y, pw-m, y); y += 8;
+      // Grade
+      const hs = result.homepageScan;
+      const gc = hs.grade === 'A' ? C.green : hs.grade === 'B' ? C.blue : hs.grade === 'C' ? C.yellow : C.red;
+      doc.setFillColor(C.bg[0],C.bg[1],C.bg[2]); doc.roundedRect(m, y, cw, 20, 3, 3, 'F');
+      doc.setFontSize(26); doc.setFont('helvetica','bold'); doc.setTextColor(gc[0],gc[1],gc[2]); doc.text(hs.grade, m+12, y+14);
+      doc.setFontSize(11); doc.setTextColor(C.black[0],C.black[1],C.black[2]); doc.text(`Score: ${hs.score}/100`, m+35, y+10);
+      doc.setFontSize(8); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
+      doc.text(`${hs.passed} passed | ${hs.failed} failed | ${hs.warnings} warnings | ${result.crawlStats.totalPages} pages | ${result.crawlStats.totalForms} forms`, m+35, y+16);
+      y += 28;
+      // Helper to add section
+      const addSec = (title: string, checks: any[]) => {
+        if (!checks || checks.length === 0) return;
+        if (y > 260) newPage();
+        doc.setFillColor(C.bg[0],C.bg[1],C.bg[2]); doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
+        doc.text(`${title} (${checks.length})`, m+3, y+5); y += 10;
+        for (const c of checks) {
+          if (y > 280) newPage();
+          const sc = c.status==='fail'?C.red:c.status==='warn'?C.yellow:c.status==='pass'?C.green:C.blue;
+          doc.setFontSize(6); doc.setFont('helvetica','bold'); doc.setTextColor(sc[0],sc[1],sc[2]);
+          doc.text(c.status.toUpperCase(), m+2, y);
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
+          doc.text((c.name||'').substring(0,50), m+14, y);
+          y += 3.5;
+          doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
+          doc.text((c.detail||'').substring(0,110), m+14, y); y += 4.5;
+        }
+        y += 2;
+      };
+      addSec('Security Headers', hs.headers);
+      addSec('Exposed Files', hs.exposedFiles);
+      addSec('Admin Panels', hs.adminPanels);
+      addSec('Cookies', hs.cookies);
+      addSec('CORS', hs.cors);
+      addSec('Info Disclosure', hs.infoDisclosure);
+      addSec('HTTP Methods', hs.httpMethods);
+      addSec('HTML Analysis', hs.htmlAnalysis);
+      addSec('SQL Injection Tests', result.attacks.sqli);
+      addSec('XSS Tests', result.attacks.xss);
+      addSec('Open Redirect Tests', result.attacks.openRedirects);
+      addSec('Path Traversal Tests', result.attacks.pathTraversal);
+      addSec('IDOR Tests', result.attacks.idor);
+      addSec('Per-Page Headers', result.attacks.perPageHeaders);
+      addSec('SSL/TLS', result.infra.ssl);
+      addSec('DNS Security', result.infra.dns);
+      addSec('Subdomain Discovery', result.infra.subdomainChecks);
+      addSec('Port Scan', result.infra.ports);
+      // Sitemap
+      if (result.sitemap.length > 0) {
+        if (y > 250) newPage();
+        doc.setFillColor(C.bg[0],C.bg[1],C.bg[2]); doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
+        doc.text(`Crawled Pages (${result.sitemap.length})`, m+3, y+5); y += 10;
+        for (const p of result.sitemap) {
+          if (y > 280) newPage();
+          doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(C.blue[0],C.blue[1],C.blue[2]);
+          doc.text(`• ${(p.url||'').substring(0,90)}`, m+5, y);
+          doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
+          doc.text(`(${p.statusCode}) ${p.forms?.length||0} forms`, m+cw-30, y); y += 4;
+        }
+      }
+      // Footer
+      const tp = doc.getNumberOfPages();
+      for (let p=1;p<=tp;p++) {
+        doc.setPage(p); doc.setDrawColor(C.light[0],C.light[1],C.light[2]); doc.line(m,285,pw-m,285);
+        doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
+        doc.text('ATHANDEEPSCAN — Full-Site Deep Penetration Report — Athan Security', m, 290);
+        doc.text(`Page ${p}/${tp}`, pw-m, 290, { align:'right' });
+      }
+      const domain = new URL(url.startsWith('http')?url:`https://${url}`).hostname.replace(/\./g,'-');
+      doc.save(`DeepScan-${domain}-${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch(e) { console.error('PDF error:', e); }
     finally { setPdfLoading(false); }
   };
 
-  if (!sessionId) {
-    return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center text-white">
-        <div className="text-center p-8"><p>Invalid session. Please start a new scan.</p>
-          <button onClick={() => router.push('/')} className="mt-4 bg-red-600 px-6 py-2 rounded-xl">Go Back</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) return (
+  if (!sessionId) return (
     <div className="min-h-screen bg-[#030712] flex items-center justify-center text-white">
-      <div className="text-center">
-        <Loader2 className="w-10 h-10 text-red-500 mx-auto mb-4 animate-spin" />
-        <p className="text-lg font-bold mb-2">Running Deep Scan...</p>
-        <p className="text-sm text-slate-400">{scanPhase}</p>
-        <p className="text-xs text-slate-600 mt-4">150+ checks — this takes 15-30 seconds</p>
+      <div className="text-center p-8"><p>Invalid session.</p>
+        <button onClick={() => router.push('/')} className="mt-4 bg-red-600 px-6 py-2 rounded-xl">Go Back</button>
       </div>
     </div>
   );
@@ -265,12 +194,21 @@ function SuccessContent() {
         <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold mb-2">Scan Error</h2>
         <p className="text-slate-400 text-sm">{error}</p>
-        <p className="text-xs text-slate-600 mt-4">Contact sakis@sakis-athan.com for support</p>
       </div>
     </div>
   );
 
-  if (!result) return null;
+  if (!result) return (
+    <div className="min-h-screen bg-[#030712] flex items-center justify-center text-white py-20">
+      <ProgressBar progress={progress} />
+    </div>
+  );
+
+  const hs = result.homepageScan;
+  const gc = (g: string) => g === 'A' ? 'text-green-500' : g === 'B' ? 'text-blue-500' : g === 'C' ? 'text-yellow-500' : 'text-red-500';
+  const totalAttacks = result.attacks.sqli.length + result.attacks.xss.length + result.attacks.openRedirects.length + result.attacks.pathTraversal.length + result.attacks.idor.length;
+  const totalInfra = result.infra.ssl.length + result.infra.dns.length + result.infra.subdomainChecks.length + result.infra.ports.length;
+  const totalChecks = hs.totalChecks + totalAttacks + result.attacks.perPageHeaders.length + totalInfra;
 
   return (
     <div className="min-h-screen bg-[#030712] text-white">
@@ -278,80 +216,102 @@ function SuccessContent() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShieldAlert className="w-6 h-6 text-red-500" />
-            <span className="font-bold text-lg">Athan<span className="text-red-500">DeepScan</span> — Full Report</span>
+            <span className="font-bold text-lg">Athan<span className="text-red-500">DeepScan</span> — Full Site Report</span>
           </div>
           <button onClick={handlePDF} disabled={pdfLoading} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
-            {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Download PDF
+            {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download PDF
           </button>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-4">
-        {/* Payment Success Banner */}
         <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-5 flex items-center gap-4">
           <CheckCircle2 className="w-8 h-8 text-green-500 shrink-0" />
           <div>
-            <p className="font-bold text-green-400">Payment Confirmed — Full Report Unlocked</p>
-            <p className="text-sm text-slate-400">A copy of this report has been sent to <strong className="text-white">{email}</strong></p>
+            <p className="font-bold text-green-400">Deep Scan Complete — {result.crawlStats.totalPages} pages crawled, {totalChecks}+ checks performed</p>
+            <p className="text-sm text-slate-400">Report sent to <strong className="text-white">{email}</strong> • Crawl time: {(result.crawlStats.crawlTimeMs / 1000).toFixed(1)}s</p>
           </div>
         </div>
 
         {/* Grade */}
         <div className="bg-white/5 rounded-2xl p-8 border border-white/10 text-center">
-          <div className={`text-7xl font-black ${gc(result.grade)}`}>{result.grade}</div>
-          <div className="text-slate-500 mt-2">Score: {result.score}/100 — {result.totalChecks} checks performed</div>
-          <div className="text-sm text-slate-600 mt-1">{result.url} — {new Date(result.timestamp).toLocaleDateString()}</div>
+          <div className={`text-7xl font-black ${gc(hs.grade)}`}>{hs.grade}</div>
+          <div className="text-slate-500 mt-2">Score: {hs.score}/100 — {totalChecks}+ total checks</div>
           <div className="flex justify-center gap-6 mt-4 text-sm">
-            <span className="text-green-500">✓ {result.passed} Passed</span>
-            <span className="text-red-500">✗ {result.failed} Failed</span>
-            <span className="text-yellow-500">⚠ {result.warnings} Warnings</span>
+            <span className="text-green-500">✓ {hs.passed} Passed</span>
+            <span className="text-red-500">✗ {hs.failed} Failed</span>
+            <span className="text-yellow-500">⚠ {hs.warnings} Warnings</span>
+          </div>
+          <div className="flex justify-center gap-6 mt-2 text-xs text-slate-600">
+            <span>📄 {result.crawlStats.totalPages} pages</span>
+            <span>📝 {result.crawlStats.totalForms} forms</span>
+            <span>🔗 {result.crawlStats.totalParams} params</span>
+            <span>🕸️ Depth {result.crawlStats.crawlDepth}</span>
           </div>
         </div>
 
-        {/* GPC */}
-        <div className={`rounded-2xl p-5 border ${result.gpc.supported ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'} flex items-center gap-4`}>
-          {result.gpc.supported ? <CheckCircle2 className="w-6 h-6 text-green-500" /> : <XCircle className="w-6 h-6 text-red-500" />}
-          <div>
-            <div className="font-bold text-sm">Global Privacy Control (GPC)</div>
-            <div className="text-xs text-slate-400">{result.gpc.details}</div>
-          </div>
-        </div>
+        {/* Crawled Pages */}
+        {result.sitemap.length > 0 && (
+          <Section title={`Crawled Pages (${result.sitemap.length})`} icon={<Globe className="w-5 h-5 text-blue-400" />} checks={result.sitemap.map((p: any) => ({ name: p.url, status: p.statusCode === 200 ? 'pass' : 'warn', detail: `Status ${p.statusCode} | ${p.forms?.length || 0} forms | Depth ${p.depth}`, risk: 'None' }))} />
+        )}
 
-        <CheckSection title="Security Headers" icon="🛡️" checks={result.headers} defaultOpen={true} />
-        <CheckSection title="Exposed Files & Paths" icon="📁" checks={result.exposedFiles} />
-        <CheckSection title="Admin Panels" icon="🔓" checks={result.adminPanels} />
-        <CheckSection title="Cookie Security" icon="🍪" checks={result.cookies} defaultOpen={true} />
-        <CheckSection title="CORS Policy" icon="🌐" checks={result.cors} defaultOpen={true} />
-        <CheckSection title="Information Disclosure" icon="💬" checks={result.infoDisclosure} defaultOpen={true} />
-        <CheckSection title="HTTP Methods" icon="📡" checks={result.httpMethods} />
-        <CheckSection title="HTML Content Analysis" icon="📄" checks={result.htmlAnalysis} />
+        {/* Homepage Checks */}
+        <h3 className="text-lg font-bold mt-8 flex items-center gap-2"><Shield className="w-5 h-5 text-red-500" /> Homepage Security Audit</h3>
+        <Section title="Security Headers" icon={<Shield className="w-5 h-5 text-red-400" />} checks={hs.headers} open={true} />
+        <Section title="Exposed Files" icon={<AlertTriangle className="w-5 h-5 text-orange-400" />} checks={hs.exposedFiles} />
+        <Section title="Admin Panels" icon={<Server className="w-5 h-5 text-orange-400" />} checks={hs.adminPanels} />
+        <Section title="Cookies" icon={<Info className="w-5 h-5 text-blue-400" />} checks={hs.cookies} open={true} />
+        <Section title="CORS" icon={<Globe className="w-5 h-5 text-blue-400" />} checks={hs.cors} open={true} />
+        <Section title="Info Disclosure" icon={<Info className="w-5 h-5 text-yellow-400" />} checks={hs.infoDisclosure} />
+        <Section title="HTTP Methods" icon={<Server className="w-5 h-5 text-purple-400" />} checks={hs.httpMethods} />
+        <Section title="HTML Analysis" icon={<Info className="w-5 h-5 text-cyan-400" />} checks={hs.htmlAnalysis} />
 
-        {result.technologies.length > 0 && (
+        {/* Attack Results */}
+        {totalAttacks > 0 && (
+          <>
+            <h3 className="text-lg font-bold mt-8 flex items-center gap-2"><Bug className="w-5 h-5 text-red-500" /> Vulnerability Testing ({totalAttacks} tests)</h3>
+            {result.attacks.sqli.length > 0 && <Section title="SQL Injection" icon={<Bug className="w-5 h-5 text-red-400" />} checks={result.attacks.sqli} open={true} />}
+            {result.attacks.xss.length > 0 && <Section title="XSS (Reflected)" icon={<Bug className="w-5 h-5 text-orange-400" />} checks={result.attacks.xss} open={true} />}
+            {result.attacks.openRedirects.length > 0 && <Section title="Open Redirects" icon={<Bug className="w-5 h-5 text-yellow-400" />} checks={result.attacks.openRedirects} />}
+            {result.attacks.pathTraversal.length > 0 && <Section title="Path Traversal" icon={<Bug className="w-5 h-5 text-red-400" />} checks={result.attacks.pathTraversal} />}
+            {result.attacks.idor.length > 0 && <Section title="IDOR" icon={<Bug className="w-5 h-5 text-orange-400" />} checks={result.attacks.idor} />}
+            {result.attacks.perPageHeaders.length > 0 && <Section title="Per-Page Headers" icon={<Shield className="w-5 h-5 text-blue-400" />} checks={result.attacks.perPageHeaders} />}
+          </>
+        )}
+
+        {/* Infrastructure */}
+        {totalInfra > 0 && (
+          <>
+            <h3 className="text-lg font-bold mt-8 flex items-center gap-2"><Wifi className="w-5 h-5 text-green-500" /> Infrastructure ({totalInfra} checks)</h3>
+            {result.infra.ssl.length > 0 && <Section title="SSL/TLS" icon={<Shield className="w-5 h-5 text-green-400" />} checks={result.infra.ssl} open={true} />}
+            {result.infra.dns.length > 0 && <Section title="DNS Security" icon={<Globe className="w-5 h-5 text-blue-400" />} checks={result.infra.dns} open={true} />}
+            {result.infra.subdomainChecks.length > 0 && <Section title="Subdomains" icon={<Server className="w-5 h-5 text-purple-400" />} checks={result.infra.subdomainChecks} />}
+            {result.infra.ports.length > 0 && <Section title="Port Scan" icon={<Wifi className="w-5 h-5 text-red-400" />} checks={result.infra.ports} open={true} />}
+          </>
+        )}
+
+        {/* Tech + Trackers */}
+        {hs.technologies?.length > 0 && (
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
-            <div className="flex items-center gap-3 mb-4"><span className="text-xl">🔍</span><span className="font-bold">Detected Technologies</span></div>
-            <div className="flex flex-wrap gap-2">{result.technologies.map((t, i) => <span key={i} className="px-3 py-1.5 bg-purple-500/10 text-purple-300 rounded-lg text-sm border border-purple-500/20">{t.name} <span className="text-xs opacity-60">({t.category})</span></span>)}</div>
+            <div className="font-bold mb-3">🔍 Detected Technologies ({hs.technologies.length})</div>
+            <div className="flex flex-wrap gap-2">{hs.technologies.map((t: any, i: number) => <span key={i} className="px-3 py-1.5 bg-purple-500/10 text-purple-300 rounded-lg text-sm border border-purple-500/20">{t.name} <span className="text-xs opacity-60">({t.category})</span></span>)}</div>
           </div>
         )}
-        {result.trackers.found > 0 && (
+        {hs.trackers?.found > 0 && (
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
-            <div className="flex items-center gap-3 mb-4"><span className="text-xl">👁️</span><span className="font-bold">Pre-Consent Trackers ({result.trackers.found})</span></div>
-            <div className="space-y-2">{result.trackers.list.map((t, i) => <div key={i} className="flex justify-between py-2 border-b border-white/5"><span className="text-sm">{t.name}</span><span className="text-xs px-2 py-0.5 rounded bg-white/10">{t.type}</span></div>)}</div>
+            <div className="font-bold mb-3">👁️ Pre-Consent Trackers ({hs.trackers.found})</div>
+            <div className="space-y-2">{hs.trackers.list.map((t: any, i: number) => <div key={i} className="flex justify-between py-2 border-b border-white/5"><span className="text-sm">{t.name}</span><span className="text-xs px-2 py-0.5 rounded bg-white/10">{t.type}</span></div>)}</div>
           </div>
         )}
       </main>
-      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security</footer>
+      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">ATHANDEEPSCAN — Full-Site Deep Penetration Report — Athan Security</footer>
     </div>
   );
 }
 
 export default function SuccessPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center text-white">
-        <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen bg-[#030712] flex items-center justify-center text-white"><Loader2 className="w-10 h-10 text-red-500 animate-spin" /></div>}>
       <SuccessContent />
     </Suspense>
   );

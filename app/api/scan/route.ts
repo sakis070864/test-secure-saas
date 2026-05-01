@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid payment session' }, { status: 403 });
     }
 
-    // Payment verified — run the deep scan
+    // Payment verified — run the homepage deep scan (headers, files, admin panels)
     const result = await performDeepScan(url);
 
     // Create token for report page

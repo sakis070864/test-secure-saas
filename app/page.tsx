@@ -39,14 +39,18 @@ function LandingContent() {
   };
 
   const checks = [
-    { icon: Shield, title: '15 Security Headers', desc: 'HSTS, CSP, X-Frame, CORP and more' },
-    { icon: FileText, title: '67 Sensitive Files', desc: '.env, .git, backup.sql, config files' },
-    { icon: Lock, title: '20 Admin Panels', desc: 'wp-admin, phpMyAdmin, cPanel' },
-    { icon: Server, title: 'Cookie Security', desc: 'Secure, HttpOnly, SameSite flags' },
-    { icon: Globe, title: 'CORS Analysis', desc: 'Cross-origin policy evaluation' },
-    { icon: Eye, title: 'Info Disclosure', desc: 'Server, X-Powered-By, debug headers' },
+    { icon: Globe, title: 'Full-Site Spider', desc: 'Crawls up to 50 pages deep, discovers every link & asset' },
+    { icon: Shield, title: 'Security Headers', desc: '15 headers checked on every crawled page' },
+    { icon: FileText, title: '67+ Sensitive Files', desc: '.env, .git, backup.sql, config files' },
+    { icon: Lock, title: 'SQL Injection', desc: 'Error-based SQLi probes on every form' },
+    { icon: Zap, title: 'XSS Detection', desc: 'Reflected XSS payloads on every input' },
+    { icon: Server, title: 'SSL/TLS Audit', desc: 'HTTPS, HSTS, certificate & redirect analysis' },
+    { icon: Cpu, title: 'DNS Security', desc: 'SPF, DKIM, DMARC, CAA records' },
+    { icon: Eye, title: 'Subdomain Discovery', desc: '90+ common subdomains probed' },
+    { icon: Shield, title: 'Port Scanning', desc: '19 dangerous ports (RDP, MySQL, Redis, etc.)' },
+    { icon: Lock, title: 'Cookie Security', desc: 'Secure, HttpOnly, SameSite per page' },
     { icon: Cpu, title: 'Tech Fingerprint', desc: '30+ CMS, frameworks, CDNs detected' },
-    { icon: Zap, title: 'GPC Compliance', desc: 'Global Privacy Control signal check' },
+    { icon: Zap, title: 'GPC + Open Redirects', desc: 'Privacy compliance + redirect exploits' },
   ];
 
   return (
@@ -91,7 +95,7 @@ function LandingContent() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
             <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-full px-4 py-1.5 text-xs text-red-400 font-medium mb-8">
               <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-              Enterprise-Grade Vulnerability Assessment
+              Full-Site Deep Penetration Assessment — Spider + Attack Engine
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[0.95] mb-6">
@@ -102,8 +106,8 @@ function LandingContent() {
             </h1>
 
             <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-              150+ automated security checks. Full penetration-style audit.
-              Download-ready PDF report. <strong className="text-white">One scan. One price. $50.</strong>
+              500–2,000+ automated checks. Full-site spider crawls every page. Attack engine tests every form.
+              SSL, DNS, subdomains, ports. 20+ page PDF report. <strong className="text-white">One scan. $199.</strong>
             </p>
 
             {/* ═══ Payment Form ═══ */}
@@ -132,7 +136,7 @@ function LandingContent() {
                   ) : (
                     <>
                       <Lock className="w-5 h-5" />
-                      Run Deep Scan — $50
+                      Run Deep Scan — $199
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
@@ -154,10 +158,10 @@ function LandingContent() {
         <section className="py-16 border-t border-white/5">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-12">
-              <h2 className="text-2xl sm:text-3xl font-black mb-3">150+ Automated Security Checks</h2>
-              <p className="text-slate-400">The same checks professional pen-testers run — automated, instant, and thorough.</p>
+              <h2 className="text-2xl sm:text-3xl font-black mb-3">500–2,000+ Deep Security Checks</h2>
+              <p className="text-slate-400">Full-site crawl + attack engine. Every page. Every form. Every parameter. Every port.</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {checks.map((c, i) => (
                 <div key={i} className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 hover:bg-white/[0.04] hover:border-white/10 transition-all group">
                   <c.icon className="w-7 h-7 text-red-500 mb-3 group-hover:scale-110 transition-transform" />
@@ -176,8 +180,8 @@ function LandingContent() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {[
                 { step: '01', title: 'Enter Your URL', desc: 'Provide the website you want audited and your email address.' },
-                { step: '02', title: 'Secure Payment', desc: 'One-time $50 payment via Stripe. No subscriptions.' },
-                { step: '03', title: 'Get Your Report', desc: 'Full report on-screen + downloadable PDF. Emailed to you.' },
+                { step: '02', title: 'Secure Payment', desc: 'One-time $199 payment via Stripe. No subscriptions.' },
+                { step: '03', title: 'Watch the Deep Scan', desc: 'Spider crawls your site live. Attack engine tests everything. Full PDF in 2-5 minutes.' },
               ].map((s, i) => (
                 <div key={i} className="relative bg-white/[0.02] border border-white/5 rounded-2xl p-6 text-center">
                   <div className="text-4xl font-black text-red-500/20 mb-3">{s.step}</div>
@@ -220,11 +224,12 @@ function LandingContent() {
             <h2 className="text-2xl sm:text-3xl font-black text-center mb-12">FAQ</h2>
             <div className="space-y-3">
               {[
-                { q: 'What exactly do you scan?', a: 'We perform 150+ checks including security headers, exposed files (.env, .git, backups), admin panels, cookie security, CORS policy, information disclosure, HTTP methods, technology fingerprinting, pre-consent trackers, and GPC compliance.' },
-                { q: 'How long does it take?', a: 'The full scan completes in 15-30 seconds. You get results instantly on-screen, with a downloadable PDF report.' },
+                { q: 'What exactly do you scan?', a: 'Our spider crawls up to 50 pages deep, discovering every link, form, and parameter. Then we test every page for SQL injection, reflected XSS, open redirects, path traversal, and IDOR. We also audit SSL/TLS, DNS (SPF/DKIM/DMARC), discover subdomains, and scan 19 common ports. Plus: security headers, exposed files, admin panels, cookies, CORS, tech fingerprinting, and GPC compliance — on EVERY page.' },
+                { q: 'How long does it take?', a: 'The deep scan takes 2-5 minutes depending on site size. You watch the progress live: spider crawling, pages being attacked, infrastructure being probed. Results appear in real-time.' },
                 { q: 'Is my data safe?', a: 'Payment is processed by Stripe. We never store card details. Reports are encrypted and expire after 7 days.' },
-                { q: 'Do you test for exploits?', a: 'We perform non-intrusive checks only. No actual exploitation. We identify vulnerabilities — we don\'t exploit them.' },
-                { q: 'Can I re-run the scan?', a: 'Each payment covers one scan. You can purchase additional scans at any time for updated results.' },
+                { q: 'Do you actually test for SQLi and XSS?', a: 'Yes. We send safe probe payloads to every form and parameter found on the site. We detect error-based SQL injection and reflected XSS by analyzing the response — we never inject destructive payloads or modify data.' },
+                { q: 'Why $199?', a: 'A professional pentest costs $3,000–$15,000 and takes weeks. Our automated deep scan delivers 80% of the findings in 5 minutes for a fraction of the cost. Ideal for SMBs and quarterly audits.' },
+                { q: 'Can I re-run the scan?', a: 'Each payment covers one deep scan. You can purchase additional scans at any time for updated results.' },
               ].map((faq, i) => <FAQItem key={i} q={faq.q} a={faq.a} />)}
             </div>
           </div>
@@ -234,7 +239,7 @@ function LandingContent() {
         <section className="py-20 border-t border-white/5">
           <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
             <h2 className="text-3xl sm:text-4xl font-black mb-4">Don&apos;t Wait for a Breach</h2>
-            <p className="text-slate-400 mb-8">One scan. $50. Know your vulnerabilities today.</p>
+            <p className="text-slate-400 mb-8">One deep scan. $199. Every page. Every form. Every vulnerability.</p>
             <a href="#top" className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold px-8 py-4 rounded-xl text-lg hover:from-red-500 hover:to-red-400 transition-all">
               <ShieldAlert className="w-5 h-5" /> Scan Now <ArrowRight className="w-5 h-5" />
             </a>
