@@ -1,14 +1,18 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { ShieldAlert, Lock, CheckCircle2, AlertTriangle, ArrowRight, Loader2, Shield, Cpu, FileText, Globe, Server, Eye, Zap, ChevronDown } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { ShieldAlert, Lock, CheckCircle2, AlertTriangle, ArrowRight, Loader2, Shield, Cpu, FileText, Globe, Server, Eye, Zap, ChevronDown, Sparkles } from 'lucide-react';
 
 function LandingContent() {
   const searchParams = useSearchParams();
-  const [url, setUrl] = useState('');
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const [freeUrl, setFreeUrl] = useState('');
+  const [stdUrl, setStdUrl] = useState('');
+  const [stdEmail, setStdEmail] = useState('');
+  const [deepUrl, setDeepUrl] = useState('');
+  const [deepEmail, setDeepEmail] = useState('');
+  const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
 
@@ -17,51 +21,47 @@ function LandingContent() {
       setShowCancelled(true);
       setTimeout(() => setShowCancelled(false), 5000);
     }
+    const upgradeUrl = searchParams.get('url');
+    if (upgradeUrl) {
+      setStdUrl(upgradeUrl);
+      setDeepUrl(upgradeUrl);
+    }
   }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFree = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!freeUrl) return;
+    router.push(`/scan/free?url=${encodeURIComponent(freeUrl)}`);
+  };
+
+  const handlePaid = async (e: React.FormEvent, tier: 'standard' | 'deep') => {
+    e.preventDefault();
+    const url = tier === 'standard' ? stdUrl : deepUrl;
+    const email = tier === 'standard' ? stdEmail : deepEmail;
+    if (!url || !email) return;
+    setLoading(tier);
     setError('');
     try {
       const r = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, email }),
+        body: JSON.stringify({ url, email, tier }),
       });
       const data = await r.json();
-      if (data.error) { setError(data.error); setLoading(false); return; }
+      if (data.error) { setError(data.error); setLoading(null); return; }
       window.location.href = data.url;
     } catch {
       setError('Something went wrong. Please try again.');
-      setLoading(false);
+      setLoading(null);
     }
   };
-
-  const checks = [
-    { icon: Globe, title: 'Full-Site Spider', desc: 'Crawls up to 50 pages deep, discovers every link & asset' },
-    { icon: Shield, title: 'Security Headers', desc: '15 headers checked on every crawled page' },
-    { icon: FileText, title: '67+ Sensitive Files', desc: '.env, .git, backup.sql, config files' },
-    { icon: Lock, title: 'SQL Injection', desc: 'Error-based SQLi probes on every form' },
-    { icon: Zap, title: 'XSS Detection', desc: 'Reflected XSS payloads on every input' },
-    { icon: Server, title: 'SSL/TLS Audit', desc: 'HTTPS, HSTS, certificate & redirect analysis' },
-    { icon: Cpu, title: 'DNS Security', desc: 'SPF, DKIM, DMARC, CAA records' },
-    { icon: Eye, title: 'Subdomain Discovery', desc: '90+ common subdomains probed' },
-    { icon: Shield, title: 'Port Scanning', desc: '19 dangerous ports (RDP, MySQL, Redis, etc.)' },
-    { icon: Lock, title: 'Cookie Security', desc: 'Secure, HttpOnly, SameSite per page' },
-    { icon: Cpu, title: 'Tech Fingerprint', desc: '30+ CMS, frameworks, CDNs detected' },
-    { icon: Zap, title: 'GPC + Open Redirects', desc: 'Privacy compliance + redirect exploits' },
-  ];
 
   return (
     <div className="min-h-screen bg-[#030712] text-white overflow-hidden">
       {/* Animated Grid Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0" style={{
-          backgroundImage: `
-            linear-gradient(rgba(220,38,38,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(220,38,38,0.03) 1px, transparent 1px)
-          `,
+          backgroundImage: `linear-gradient(rgba(220,38,38,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,0.03) 1px, transparent 1px)`,
           backgroundSize: '60px 60px',
         }} />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-red-600/5 blur-[160px]" />
@@ -79,141 +79,173 @@ function LandingContent() {
         </div>
       </nav>
 
-      {/* Cancelled Banner */}
       {showCancelled && (
         <div className="relative z-10 bg-yellow-500/10 border-b border-yellow-500/20">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0" />
-            <p className="text-sm text-yellow-300">Payment cancelled. No charge was made. Feel free to try again.</p>
+            <p className="text-sm text-yellow-300">Payment cancelled. No charge was made.</p>
           </div>
         </div>
       )}
 
       <main className="relative z-10">
-        {/* Hero Section */}
-        <section className="py-20 sm:py-32">
+        {/* Hero */}
+        <section className="py-16 sm:py-24">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
             <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-full px-4 py-1.5 text-xs text-red-400 font-medium mb-8">
               <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-              Full-Site Deep Penetration Assessment — Spider + Attack Engine
+              Professional Security Assessments — 3 Tiers
             </div>
-
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[0.95] mb-6">
               <span className="text-white">Know Your</span><br />
               <span className="bg-gradient-to-r from-red-500 via-red-400 to-orange-500 bg-clip-text text-transparent">Vulnerabilities</span>
               <br />
               <span className="text-white">Before Hackers Do</span>
             </h1>
-
-            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-              500–2,000+ automated checks. Full-site spider crawls every page. Attack engine tests every form.
-              SSL, DNS, subdomains, ports. 20+ page PDF report. <strong className="text-white">One scan. $199.</strong>
+            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-4 leading-relaxed">
+              From quick free checks to full penetration assessments. Choose your level of protection.
             </p>
-
-            {/* ═══ Payment Form ═══ */}
-            <form onSubmit={handleSubmit} className="max-w-lg mx-auto">
-              <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl p-6 sm:p-8 space-y-4">
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5 block text-left">Website URL</label>
-                  <input type="text" value={url} onChange={e => setUrl(e.target.value)} placeholder="example.com" required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5 block text-left">Business Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all"
-                  />
-                </div>
-
-                {error && <p className="text-sm text-red-400 text-left">{error}</p>}
-
-                <button type="submit" disabled={loading || !url || !email}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-                >
-                  {loading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" /> Redirecting to checkout...</>
-                  ) : (
-                    <>
-                      <Lock className="w-5 h-5" />
-                      Run Deep Scan — $199
-                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </button>
-
-                <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500 pt-1">
-                  <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> SSL Encrypted</span>
-                  <span>•</span>
-                  <span>Powered by Stripe</span>
-                  <span>•</span>
-                  <span>Instant Results</span>
-                </div>
-              </div>
-            </form>
           </div>
         </section>
 
-        {/* What You Get */}
-        <section className="py-16 border-t border-white/5">
+        {/* ═══ 3 PRICING CARDS ═══ */}
+        <section id="pricing" className="pb-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="text-center mb-12">
-              <h2 className="text-2xl sm:text-3xl font-black mb-3">500–2,000+ Deep Security Checks</h2>
-              <p className="text-slate-400">Full-site crawl + attack engine. Every page. Every form. Every parameter. Every port.</p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {checks.map((c, i) => (
-                <div key={i} className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 hover:bg-white/[0.04] hover:border-white/10 transition-all group">
-                  <c.icon className="w-7 h-7 text-red-500 mb-3 group-hover:scale-110 transition-transform" />
-                  <h3 className="font-bold text-sm mb-1">{c.title}</h3>
-                  <p className="text-xs text-slate-500">{c.desc}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+
+              {/* ── FREE ── */}
+              <div className="bg-white/[0.02] border border-white/10 rounded-3xl p-6 sm:p-8 hover:border-white/20 transition-all">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Free</div>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-black">$0</span>
                 </div>
-              ))}
+                <p className="text-xs text-slate-500 mb-6">Quick security check</p>
+                <ul className="space-y-2 text-sm text-slate-400 mb-6">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> ~50 security checks</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 8 security headers</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> SSL & cookie audit</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 5 critical file checks</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> Tech fingerprinting</li>
+                  <li className="flex items-center gap-2 text-slate-600"><Lock className="w-4 h-4 shrink-0" /> No PDF report</li>
+                  <li className="flex items-center gap-2 text-slate-600"><Lock className="w-4 h-4 shrink-0" /> No spider / attacks</li>
+                </ul>
+                <form onSubmit={handleFree} className="space-y-3">
+                  <input type="text" value={freeUrl} onChange={e => setFreeUrl(e.target.value)} placeholder="example.com" required
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-slate-500/50 transition-all" />
+                  <button type="submit" className="w-full bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
+                    <Zap className="w-4 h-4" /> Run Free Scan
+                  </button>
+                </form>
+              </div>
+
+              {/* ── STANDARD $20 ── */}
+              <div className="bg-white/[0.02] border border-blue-500/30 rounded-3xl p-6 sm:p-8 hover:border-blue-500/50 transition-all relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">Popular</div>
+                <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Standard</div>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-black">$20</span>
+                  <span className="text-sm text-slate-500">/scan</span>
+                </div>
+                <p className="text-xs text-slate-500 mb-6">Business security audit</p>
+                <ul className="space-y-2 text-sm text-slate-400 mb-6">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 150+ security checks</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 15 headers + 67 files</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 20 admin panel probes</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> Cookie + CORS + HTML</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" /> PDF report download</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" /> Any email accepted</li>
+                  <li className="flex items-center gap-2 text-slate-600"><Lock className="w-4 h-4 shrink-0" /> No spider / attacks</li>
+                </ul>
+                <form onSubmit={e => handlePaid(e, 'standard')} className="space-y-3">
+                  <input type="text" value={stdUrl} onChange={e => setStdUrl(e.target.value)} placeholder="example.com" required
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-blue-500/50 transition-all" />
+                  <input type="email" value={stdEmail} onChange={e => setStdEmail(e.target.value)} placeholder="you@email.com" required
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-blue-500/50 transition-all" />
+                  <button type="submit" disabled={loading === 'standard'}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                    {loading === 'standard' ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</> : <><Lock className="w-4 h-4" /> Scan — $20</>}
+                  </button>
+                </form>
+              </div>
+
+              {/* ── DEEP $99 ── */}
+              <div className="bg-gradient-to-b from-red-500/5 to-transparent border border-red-500/30 rounded-3xl p-6 sm:p-8 hover:border-red-500/50 transition-all relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><Sparkles className="w-3 h-3" /> Full Pentest</div>
+                <div className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Deep Scan</div>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-black">$99</span>
+                  <span className="text-sm text-slate-500">/scan</span>
+                </div>
+                <p className="text-xs text-slate-500 mb-6">Full penetration assessment</p>
+                <ul className="space-y-2 text-sm text-slate-400 mb-6">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 500–2,000+ checks</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> Spider crawls 50 pages</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> SQLi + XSS attacks</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> SSL, DNS, ports, subs</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-red-400 shrink-0" /> 20+ page PDF report</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-red-400 shrink-0" /> Open redirect + IDOR</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-red-400 shrink-0" /> Full infrastructure scan</li>
+                </ul>
+                <form onSubmit={e => handlePaid(e, 'deep')} className="space-y-3">
+                  <input type="text" value={deepUrl} onChange={e => setDeepUrl(e.target.value)} placeholder="example.com" required
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50 transition-all" />
+                  <input type="email" value={deepEmail} onChange={e => setDeepEmail(e.target.value)} placeholder="you@company.com" required
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50 transition-all" />
+                  <button type="submit" disabled={loading === 'deep'}
+                    className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                    {loading === 'deep' ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</> : <><ShieldAlert className="w-4 h-4" /> Deep Scan — $99</>}
+                  </button>
+                </form>
+              </div>
+
+            </div>
+
+            {error && <p className="text-sm text-red-400 text-center mt-4">{error}</p>}
+
+            <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500 mt-6">
+              <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> SSL Encrypted</span>
+              <span>•</span><span>Powered by Stripe</span><span>•</span><span>Instant Results</span>
             </div>
           </div>
         </section>
 
-        {/* How It Works */}
+        {/* Comparison Table */}
         <section className="py-16 border-t border-white/5">
           <div className="max-w-4xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-black text-center mb-12">How It Works</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {[
-                { step: '01', title: 'Enter Your URL', desc: 'Provide the website you want audited and your email address.' },
-                { step: '02', title: 'Secure Payment', desc: 'One-time $199 payment via Stripe. No subscriptions.' },
-                { step: '03', title: 'Watch the Deep Scan', desc: 'Spider crawls your site live. Attack engine tests everything. Full PDF in 2-5 minutes.' },
-              ].map((s, i) => (
-                <div key={i} className="relative bg-white/[0.02] border border-white/5 rounded-2xl p-6 text-center">
-                  <div className="text-4xl font-black text-red-500/20 mb-3">{s.step}</div>
-                  <h3 className="font-bold mb-2">{s.title}</h3>
-                  <p className="text-sm text-slate-400">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Sample Findings */}
-        <section className="py-16 border-t border-white/5">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-black text-center mb-12">What We Find</h2>
-            <div className="space-y-3 max-w-2xl mx-auto">
-              {[
-                { status: 'fail', name: '.env file exposed', detail: 'ACCESSIBLE — Database passwords, API keys, secrets', risk: 'Critical' },
-                { status: 'fail', name: 'Missing Content-Security-Policy', detail: 'No CSP header — XSS and injection risk', risk: 'Medium' },
-                { status: 'warn', name: 'No GPC Signal Support', detail: 'Required in 10+ US states — CCPA/CPRA violation risk', risk: 'Compliance' },
-                { status: 'pass', name: 'HSTS Header Present', detail: 'max-age=31536000; includeSubDomains', risk: 'None' },
-                { status: 'fail', name: 'phpMyAdmin Accessible', detail: 'Admin panel exposed at /phpmyadmin — brute force risk', risk: 'High' },
-              ].map((c, i) => (
-                <div key={i} className={`flex items-center gap-3 p-4 rounded-xl border ${c.status === 'fail' ? 'bg-red-500/5 border-red-500/10' : c.status === 'warn' ? 'bg-yellow-500/5 border-yellow-500/10' : 'bg-green-500/5 border-green-500/10'}`}>
-                  {c.status === 'fail' ? <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" /> : c.status === 'warn' ? <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0" /> : <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{c.name}</div>
-                    <div className="text-xs text-slate-500">{c.detail}</div>
-                  </div>
-                  {c.risk !== 'None' && <span className={`text-[10px] px-2 py-0.5 rounded-full ${c.risk === 'Critical' ? 'bg-red-500/20 text-red-400' : c.risk === 'High' ? 'bg-orange-500/20 text-orange-400' : c.risk === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>{c.risk}</span>}
-                </div>
-              ))}
+            <h2 className="text-2xl sm:text-3xl font-black text-center mb-8">Compare Plans</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left py-3 pr-4 text-slate-400 font-medium">Feature</th>
+                    <th className="text-center py-3 px-4 text-slate-400 font-medium">Free</th>
+                    <th className="text-center py-3 px-4 text-blue-400 font-medium">Standard</th>
+                    <th className="text-center py-3 px-4 text-red-400 font-medium">Deep</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-400">
+                  {[
+                    ['Security checks', '~50', '150+', '500–2,000+'],
+                    ['Security headers', '8', '15', '15/page'],
+                    ['Sensitive files', '5', '67+', '67+/page'],
+                    ['Admin panel probes', '—', '20', '20'],
+                    ['Spider crawl', '—', '—', '✓ 50 pages'],
+                    ['SQLi / XSS attacks', '—', '—', '✓'],
+                    ['SSL / DNS / Ports', '—', '—', '✓'],
+                    ['Subdomain discovery', '—', '—', '✓ 90+'],
+                    ['PDF report', '—', '✓', '✓ 20+ pages'],
+                    ['Email required', '—', 'Any email', 'Any email'],
+                    ['Price', 'Free', '$20', '$99'],
+                  ].map(([f, free, std, deep], i) => (
+                    <tr key={i} className="border-b border-white/5">
+                      <td className="py-2.5 pr-4 text-white font-medium">{f}</td>
+                      <td className="py-2.5 px-4 text-center">{free}</td>
+                      <td className="py-2.5 px-4 text-center">{std}</td>
+                      <td className="py-2.5 px-4 text-center">{deep}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -224,12 +256,11 @@ function LandingContent() {
             <h2 className="text-2xl sm:text-3xl font-black text-center mb-12">FAQ</h2>
             <div className="space-y-3">
               {[
-                { q: 'What exactly do you scan?', a: 'Our spider crawls up to 50 pages deep, discovering every link, form, and parameter. Then we test every page for SQL injection, reflected XSS, open redirects, path traversal, and IDOR. We also audit SSL/TLS, DNS (SPF/DKIM/DMARC), discover subdomains, and scan 19 common ports. Plus: security headers, exposed files, admin panels, cookies, CORS, tech fingerprinting, and GPC compliance — on EVERY page.' },
-                { q: 'How long does it take?', a: 'The deep scan takes 2-5 minutes depending on site size. You watch the progress live: spider crawling, pages being attacked, infrastructure being probed. Results appear in real-time.' },
-                { q: 'Is my data safe?', a: 'Payment is processed by Stripe. We never store card details. Reports are encrypted and expire after 7 days.' },
-                { q: 'Do you actually test for SQLi and XSS?', a: 'Yes. We send safe probe payloads to every form and parameter found on the site. We detect error-based SQL injection and reflected XSS by analyzing the response — we never inject destructive payloads or modify data.' },
-                { q: 'Why $199?', a: 'A professional pentest costs $3,000–$15,000 and takes weeks. Our automated deep scan delivers 80% of the findings in 5 minutes for a fraction of the cost. Ideal for SMBs and quarterly audits.' },
-                { q: 'Can I re-run the scan?', a: 'Each payment covers one deep scan. You can purchase additional scans at any time for updated results.' },
+                { q: 'What does the Free scan check?', a: 'The free scan runs ~50 quick checks: 8 core security headers, SSL/HTTPS, cookie security, CORS policy, 5 critical exposed files (.env, .git, etc.), GPC compliance, and tech fingerprinting. Results are shown online only — no PDF.' },
+                { q: 'What extra does Standard ($20) include?', a: 'Standard runs 150+ checks on the homepage: all 15 security headers, 67+ sensitive files, 20 admin panel probes, HTTP methods, HTML analysis, tracker detection, and more. You get a downloadable PDF report. Any email is accepted — no business email requirement.' },
+                { q: 'Why choose Deep ($99)?', a: 'Deep scan crawls your entire site (up to 50 pages), then runs attack payloads on every form/parameter. It tests for SQL injection, XSS, open redirects, path traversal, and IDOR. Plus full infrastructure scanning: SSL/TLS, DNS (SPF/DKIM/DMARC), subdomain discovery, and port scanning. You get a 20+ page professional PDF report.' },
+                { q: 'How long does each scan take?', a: 'Free: 10-20 seconds. Standard: 30-60 seconds. Deep: 2-5 minutes depending on site size.' },
+                { q: 'Is my data safe?', a: 'Payment is processed by Stripe. We never store card details. Reports expire after 7 days.' },
               ].map((faq, i) => <FAQItem key={i} q={faq.q} a={faq.a} />)}
             </div>
           </div>
@@ -239,9 +270,9 @@ function LandingContent() {
         <section className="py-20 border-t border-white/5">
           <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
             <h2 className="text-3xl sm:text-4xl font-black mb-4">Don&apos;t Wait for a Breach</h2>
-            <p className="text-slate-400 mb-8">One deep scan. $199. Every page. Every form. Every vulnerability.</p>
-            <a href="#top" className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold px-8 py-4 rounded-xl text-lg hover:from-red-500 hover:to-red-400 transition-all">
-              <ShieldAlert className="w-5 h-5" /> Scan Now <ArrowRight className="w-5 h-5" />
+            <p className="text-slate-400 mb-8">Start with a free scan. Upgrade when you need more depth.</p>
+            <a href="#pricing" className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold px-8 py-4 rounded-xl text-lg hover:from-red-500 hover:to-red-400 transition-all">
+              <ShieldAlert className="w-5 h-5" /> Choose Your Plan <ArrowRight className="w-5 h-5" />
             </a>
           </div>
         </section>
@@ -249,7 +280,7 @@ function LandingContent() {
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-slate-600">
         <p>© {new Date().getFullYear()} ABCSecure — Enterprise Cybersecurity</p>
-        <p className="mt-1">Professional Deep Security Assessment Services</p>
+        <p className="mt-1">Professional Security Assessment Services — abcsecure.com</p>
       </footer>
     </div>
   );

@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Download, Globe, Server, Wifi, Bug, Shield } from 'lucide-react';
-import { runFullScan, type ScanProgress, type FullScanResult } from '@/lib/useScanOrchestrator';
+import { runFullScan, type ScanProgress, type FullScanResult, type ScanTier } from '@/lib/useScanOrchestrator';
 
 function StatusIcon({ status }: { status: string }) {
   if (status === 'pass') return <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />;
@@ -76,6 +76,7 @@ function SuccessContent() {
   const sessionId = sp.get('session_id');
   const url = sp.get('url') || '';
   const email = sp.get('email') || '';
+  const tier = (sp.get('tier') || 'deep') as ScanTier;
   const [result, setResult] = useState<FullScanResult | null>(null);
   const [progress, setProgress] = useState<ScanProgress>({ phase: 'idle', message: 'Initializing...', pagesFound: 0, formsFound: 0, paramsFound: 0, pagesAttacked: 0, totalPages: 0, percent: 0 });
   const [error, setError] = useState('');
@@ -85,10 +86,10 @@ function SuccessContent() {
   useEffect(() => {
     if (!sessionId || !url || !email || started.current) return;
     started.current = true;
-    runFullScan(url, email, sessionId, setProgress)
+    runFullScan(url, email, sessionId, setProgress, tier)
       .then(r => setResult(r))
       .catch(e => setError(e.message || 'Scan failed'));
-  }, [sessionId, url, email]);
+  }, [sessionId, url, email, tier]);
 
   const handlePDF = async () => {
     if (!result) return;
@@ -101,7 +102,7 @@ function SuccessContent() {
       const newPage = () => { doc.addPage(); y = 20; };
       // Title
       doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
-      doc.text('ABCSecure — Full Site Security Report', m, y); y += 7;
+      doc.text(tier === 'standard' ? 'ABCSecure — Standard Security Report' : 'ABCSecure — Full Site Security Report', m, y); y += 7;
       doc.setFontSize(9); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]); doc.setFont('helvetica','normal');
       doc.text(`${url} | ${new Date().toLocaleDateString()} | ${result.crawlStats.totalPages} pages crawled | ${result.crawlStats.totalForms} forms tested`, m, y); y += 4;
       doc.setDrawColor(C.light[0],C.light[1],C.light[2]); doc.line(m, y, pw-m, y); y += 8;

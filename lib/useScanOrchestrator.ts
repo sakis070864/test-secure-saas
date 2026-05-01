@@ -1,5 +1,7 @@
 // Scan orchestrator — drives the multi-phase deep scan from the client
+// Supports 'standard' tier (homepage only) and 'deep' tier (full 4-phase scan)
 export type ScanPhase = 'idle' | 'spider' | 'homepage' | 'attack' | 'infra' | 'done' | 'error';
+export type ScanTier = 'standard' | 'deep';
 
 export type ScanProgress = {
   phase: ScanPhase;
@@ -16,27 +18,47 @@ export type FullScanResult = {
   // Homepage scan
   homepageScan: any;
   token: string;
-  // Spider
+  // Spider (deep only)
   sitemap: any[];
   crawlStats: { totalPages: number; totalForms: number; totalParams: number; crawlDepth: number; crawlTimeMs: number };
-  // Attacks
+  // Attacks (deep only)
   attacks: { sqli: any[]; xss: any[]; openRedirects: any[]; pathTraversal: any[]; idor: any[]; perPageHeaders: any[] };
-  // Infrastructure
+  // Infrastructure (deep only)
   infra: { ssl: any[]; dns: any[]; subdomains: any[]; subdomainChecks: any[]; ports: any[] };
 };
 
 export async function runFullScan(
   url: string, email: string, sessionId: string,
-  onProgress: (p: ScanProgress) => void
+  onProgress: (p: ScanProgress) => void,
+  tier: ScanTier = 'deep'
 ): Promise<FullScanResult> {
   const progress: ScanProgress = { phase: 'idle', message: '', pagesFound: 0, formsFound: 0, paramsFound: 0, pagesAttacked: 0, totalPages: 0, percent: 0 };
   const update = (p: Partial<ScanProgress>) => { Object.assign(progress, p); onProgress({ ...progress }); };
 
+  // Determine which API to call for homepage scan based on tier
+  const scanEndpoint = tier === 'standard' ? '/api/scan-standard' : '/api/scan';
+
   // Phase 1: Homepage scan + email + lead
-  update({ phase: 'homepage', message: 'Running homepage security audit...', percent: 5 });
-  const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, email, sessionId }) });
+  const phaseLabel = tier === 'standard' ? 'Running standard security audit...' : 'Running homepage security audit...';
+  update({ phase: 'homepage', message: phaseLabel, percent: 5 });
+  const scanRes = await fetch(scanEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, email, sessionId }) });
   const scanData = await scanRes.json();
   if (scanData.error) throw new Error(scanData.error);
+
+  // For standard tier: skip spider, attack, and infra — go straight to done
+  if (tier === 'standard') {
+    update({ phase: 'done', message: 'Standard scan complete!', percent: 100 });
+    return {
+      homepageScan: scanData.result,
+      token: scanData.token,
+      sitemap: [],
+      crawlStats: { totalPages: 1, totalForms: 0, totalParams: 0, crawlDepth: 0, crawlTimeMs: 0 },
+      attacks: { sqli: [], xss: [], openRedirects: [], pathTraversal: [], idor: [], perPageHeaders: [] },
+      infra: { ssl: [], dns: [], subdomains: [], subdomainChecks: [], ports: [] },
+    };
+  }
+
+  // ═══ DEEP TIER — Full 4-phase scan ═══
   update({ percent: 15, message: 'Homepage audit complete' });
 
   // Phase 2: Spider
