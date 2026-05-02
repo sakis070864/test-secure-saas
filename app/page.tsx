@@ -75,7 +75,7 @@ function LandingContent() {
             <ShieldAlert className="w-7 h-7 text-red-500" />
             <span className="text-xl font-bold tracking-tight">ABC<span className="text-red-500">Secure</span></span>
           </div>
-          <a href="https://sakis-athan.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">Enterprise Security Audits</a>
+          <a href="https://sakis-athan.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">Get Support</a>
         </div>
       </nav>
 
