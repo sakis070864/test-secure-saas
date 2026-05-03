@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ShieldAlert, Lock, CheckCircle2, AlertTriangle, ArrowRight, Loader2, Shield, Cpu, FileText, Globe, Server, Eye, Zap, ChevronDown, Sparkles } from 'lucide-react';
+import { ShieldAlert, Lock, CheckCircle2, AlertTriangle, ArrowRight, Loader2, Shield, Cpu, FileText, Globe, Server, Eye, Zap, ChevronDown, Sparkles, Skull } from 'lucide-react';
 
 function LandingContent() {
   const searchParams = useSearchParams();
@@ -75,7 +75,13 @@ function LandingContent() {
             <ShieldAlert className="w-7 h-7 text-red-500" />
             <span className="text-xl font-bold tracking-tight">ABC<span className="text-red-500">Secure</span></span>
           </div>
-          <a href="https://sakis-athan.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">Get Support</a>
+          <div className="flex items-center gap-4">
+            <a href="/site-breached" className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all font-medium">
+              <Skull className="w-4 h-4" />
+              Site Breached?
+            </a>
+            <a href="https://sakis-athan.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">Get Support</a>
+          </div>
         </div>
       </nav>
 
@@ -118,6 +124,11 @@ function LandingContent() {
               </span>{' '}
               — all in minutes.
             </p>
+            <a href="/site-breached" className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all font-medium text-sm">
+              <Skull className="w-4 h-4" />
+              Check if a site has been breached
+              <ArrowRight className="w-4 h-4" />
+            </a>
           </div>
         </section>
 

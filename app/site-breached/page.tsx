@@ -62,7 +62,7 @@ export default function BreachCheckPage() {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Skull className="w-6 h-6 text-red-500" />
-            <span className="font-bold text-lg">ABC<span className="text-red-500">Secure</span> — Breach Check</span>
+            <span className="font-bold text-lg">ABC<span className="text-red-500">Secure</span> — Site Breached?</span>
           </div>
           <a href="/" className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" />
