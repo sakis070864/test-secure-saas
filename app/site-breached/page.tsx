@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Skull, ShieldCheck, Search, Loader2, AlertTriangle, ArrowLeft, ExternalLink, Sun, Moon } from 'lucide-react';
+import { Skull, ShieldCheck, Search, Loader2, AlertTriangle, ArrowLeft, ExternalLink, Sun, Moon, Lock, Eye, EyeOff, Globe, KeyRound } from 'lucide-react';
 
 type Breach = {
   name: string; title: string; domain: string; breachDate: string; addedDate: string;
@@ -21,6 +21,12 @@ export default function BreachCheckPage() {
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [dark, setDark] = useState(true);
+  const [activeTab, setActiveTab] = useState<'domain' | 'password'>('domain');
+  const [password, setPassword] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwResult, setPwResult] = useState<{ found: boolean; count: number } | null>(null);
+  const [pwError, setPwError] = useState('');
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('breach-theme');
@@ -51,6 +57,41 @@ export default function BreachCheckPage() {
       setError('Connection failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePasswordCheck() {
+    if (!password) return;
+    setPwLoading(true);
+    setPwError('');
+    setPwResult(null);
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const prefix = hashHex.substring(0, 5);
+      const suffix = hashHex.substring(5);
+      const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+      if (!res.ok) throw new Error('API error');
+      const text = await res.text();
+      const lines = text.split('\n');
+      let found = false;
+      let count = 0;
+      for (const line of lines) {
+        const [hashSuffix, c] = line.split(':');
+        if (hashSuffix.trim() === suffix) {
+          found = true;
+          count = parseInt(c.trim(), 10);
+          break;
+        }
+      }
+      setPwResult({ found, count });
+    } catch {
+      setPwError('Could not check password. Please try again.');
+    } finally {
+      setPwLoading(false);
     }
   }
 
@@ -85,6 +126,8 @@ export default function BreachCheckPage() {
   const redCard = dark ? 'bg-red-500/5 border-red-500/30' : 'bg-red-50 border-red-200';
   const redText = dark ? 'text-red-400' : 'text-red-600';
   const attrCard = dark ? 'bg-white/[0.02] border-white/5' : 'bg-gray-50 border-gray-200';
+  const tabActive = dark ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-red-50 text-red-600 border-red-200';
+  const tabInactive = dark ? 'bg-white/[0.02] text-slate-400 border-white/5 hover:bg-white/5' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50';
 
   return (
     <div className={`min-h-screen ${bg} ${text} transition-colors duration-300`}>
@@ -93,7 +136,7 @@ export default function BreachCheckPage() {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Skull className="w-6 h-6 text-red-500" />
-            <span className="font-bold text-lg">ABC<span className="text-red-500">Secure</span> — Site Breached?</span>
+            <span className="font-bold text-lg">ABC<span className="text-red-500">Secure</span> — Security Check</span>
           </div>
           <div className="flex items-center gap-3">
             {/* Dark/Light Toggle */}
@@ -118,20 +161,33 @@ export default function BreachCheckPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-12">
         {/* Hero */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6">
           <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full ${dark ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-500'} border text-xs font-medium mb-6`}>
             <Skull className="w-3.5 h-3.5" />
             Powered by Have I Been Pwned
           </div>
           <h1 className="text-4xl sm:text-5xl font-black mb-4">
-            Has this site been <span className="text-red-500">hacked</span>?
+            {activeTab === 'domain' ? <>Has this site been <span className="text-red-500">hacked</span>?</> : <>Is your password <span className="text-red-500">compromised</span>?</>}
           </h1>
           <p className={`${textMuted} text-lg max-w-xl mx-auto`}>
-            Enter any website domain to check if it has been involved in a known data breach.
+            {activeTab === 'domain'
+              ? 'Enter any website domain to check if it has been involved in a known data breach.'
+              : 'Check if your password has appeared in any known data breaches. Your password is never sent over the internet.'}
           </p>
         </div>
 
-        {/* Search Box */}
+        {/* Tabs */}
+        <div className="flex justify-center gap-3 mb-10">
+          <button onClick={() => setActiveTab('domain')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border text-sm font-medium transition-all ${activeTab === 'domain' ? tabActive : tabInactive}`}>
+            <Globe className="w-4 h-4" /> Site Breach
+          </button>
+          <button onClick={() => setActiveTab('password')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border text-sm font-medium transition-all ${activeTab === 'password' ? tabActive : tabInactive}`}>
+            <KeyRound className="w-4 h-4" /> Password Check
+          </button>
+        </div>
+
+        {/* Domain Search Box */}
+        {activeTab === 'domain' && (
         <div className="relative max-w-2xl mx-auto mb-10">
           <div className="flex gap-3">
             <div className="relative flex-1">
@@ -156,17 +212,105 @@ export default function BreachCheckPage() {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Error */}
-        {error && (
+        {/* Password Search Box */}
+        {activeTab === 'password' && (
+        <div className="relative max-w-2xl mx-auto mb-10">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${textDim}`} />
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handlePasswordCheck(); }}
+                placeholder="Enter a password to check"
+                className={`w-full pl-12 pr-12 py-4 ${inputBg} border rounded-2xl focus:outline-none ${inputFocus} focus:ring-1 text-lg transition-all`}
+                disabled={pwLoading}
+              />
+              <button onClick={() => setShowPw(!showPw)} className={`absolute right-4 top-1/2 -translate-y-1/2 ${textDim} hover:opacity-70`}>
+                {showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            <button
+              onClick={handlePasswordCheck}
+              disabled={pwLoading || !password}
+              className="px-8 py-4 bg-red-600 hover:bg-red-700 disabled:bg-red-600/30 disabled:cursor-not-allowed rounded-2xl font-bold text-lg text-white transition-all flex items-center gap-2 shrink-0"
+            >
+              {pwLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+              Check
+            </button>
+          </div>
+          <p className={`text-xs ${textDimmer} text-center mt-3`}>
+            🔒 Your password is hashed locally using SHA-1. Only the first 5 characters of the hash are sent to the API (k-anonymity). Your actual password never leaves your browser.
+          </p>
+        </div>
+        )}
+
+        {/* Password Error */}
+        {activeTab === 'password' && pwError && (
+          <div className={`max-w-2xl mx-auto mb-8 p-4 rounded-2xl ${dark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200'} border flex items-center gap-3`}>
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className={`text-sm ${redText}`}>{pwError}</p>
+          </div>
+        )}
+
+        {/* Password Loading */}
+        {activeTab === 'password' && pwLoading && (
+          <div className="text-center py-16">
+            <Loader2 className="w-10 h-10 text-red-500 animate-spin mx-auto mb-4" />
+            <p className={textMuted}>Checking password database...</p>
+          </div>
+        )}
+
+        {/* Password Result: SAFE */}
+        {activeTab === 'password' && pwResult && !pwResult.found && (
+          <div className="max-w-2xl mx-auto">
+            <div className={`rounded-2xl ${greenCard} border p-8 text-center`}>
+              <ShieldCheck className={`w-16 h-16 ${greenText} mx-auto mb-4`} />
+              <h2 className={`text-2xl font-black ${greenText} mb-2`}>Good news — no pwnage found!</h2>
+              <p className={textMuted}>
+                This password was not found in any known data breaches loaded into Have I Been Pwned.
+              </p>
+              <p className={`text-xs ${textDimmer} mt-4`}>This doesn&apos;t guarantee it&apos;s a strong password — only that it hasn&apos;t appeared in publicly disclosed breaches.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Password Result: PWNED */}
+        {activeTab === 'password' && pwResult && pwResult.found && (
+          <div className="max-w-2xl mx-auto">
+            <div className={`rounded-2xl ${redCard} border p-8 text-center`}>
+              <Skull className={`w-16 h-16 ${redText} mx-auto mb-4`} />
+              <h2 className={`text-2xl font-black ${redText} mb-2`}>Oh no — this password has been pwned!</h2>
+              <p className={textMuted}>
+                This password has been seen <span className={`font-black text-2xl ${redText}`}>{pwResult.count.toLocaleString()}</span> times in data breaches.
+              </p>
+              <p className={`text-sm font-semibold ${redText} mt-4`}>You should change this password immediately if you use it anywhere!</p>
+              <div className={`mt-6 p-4 rounded-xl ${attrCard} border text-left`}>
+                <p className={`text-xs font-bold ${textDim} uppercase tracking-wider mb-2`}>Recommendations</p>
+                <ul className={`text-sm ${textMuted} space-y-1.5`}>
+                  <li>• Use a unique password for every account</li>
+                  <li>• Use a password manager (Bitwarden, 1Password, etc.)</li>
+                  <li>• Enable two-factor authentication (2FA) wherever possible</li>
+                  <li>• Consider using passphrases (4+ random words)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Domain Error */}
+        {activeTab === 'domain' && error && (
           <div className={`max-w-2xl mx-auto mb-8 p-4 rounded-2xl ${dark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200'} border flex items-center gap-3`}>
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
             <p className={`text-sm ${redText}`}>{error}</p>
           </div>
         )}
 
-        {/* Loading */}
-        {loading && (
+        {/* Domain Loading */}
+        {activeTab === 'domain' && loading && (
           <div className="text-center py-16">
             <Loader2 className="w-10 h-10 text-red-500 animate-spin mx-auto mb-4" />
             <p className={textMuted}>Checking breach database...</p>
@@ -174,7 +318,7 @@ export default function BreachCheckPage() {
         )}
 
         {/* Results: NO breach */}
-        {result && !result.breached && (
+        {activeTab === 'domain' && result && !result.breached && (
           <div className="max-w-2xl mx-auto">
             <div className={`rounded-2xl ${greenCard} border p-8 text-center`}>
               <ShieldCheck className={`w-16 h-16 ${greenText} mx-auto mb-4`} />
@@ -188,7 +332,7 @@ export default function BreachCheckPage() {
         )}
 
         {/* Results: BREACHED */}
-        {result && result.breached && (
+        {activeTab === 'domain' && result && result.breached && (
           <div className="max-w-2xl mx-auto space-y-6">
             {/* Summary Card */}
             <div className={`rounded-2xl ${redCard} border p-8 text-center`}>
@@ -274,8 +418,8 @@ export default function BreachCheckPage() {
           </div>
         )}
 
-        {/* Examples (show before search) */}
-        {!hasSearched && (
+        {/* Examples (show before domain search) */}
+        {activeTab === 'domain' && !hasSearched && (
           <div className="max-w-2xl mx-auto mt-8">
             <p className={`text-xs ${textDimmer} text-center mb-4`}>Try these examples:</p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -286,6 +430,24 @@ export default function BreachCheckPage() {
                   className={`px-4 py-2 ${exampleBtn} border rounded-xl text-sm transition-all`}
                 >
                   {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Password examples */}
+        {activeTab === 'password' && !pwResult && !pwLoading && (
+          <div className="max-w-2xl mx-auto mt-8">
+            <p className={`text-xs ${textDimmer} text-center mb-4`}>Try these commonly breached passwords:</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {['password', '123456', 'admin', 'qwerty', 'letmein'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => { setPassword(p); }}
+                  className={`px-4 py-2 ${exampleBtn} border rounded-xl text-sm transition-all font-mono`}
+                >
+                  {p}
                 </button>
               ))}
             </div>
