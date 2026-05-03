@@ -1,9 +1,14 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Lock, ArrowRight, Zap } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Lock, ArrowRight, Zap, Skull, ShieldCheck } from 'lucide-react';
 
 type FreeCheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
+type BreachRecord = {
+  name: string; title: string; domain: string; breachDate: string;
+  pwnCount: number; description: string; dataClasses: string[];
+  isVerified: boolean; logoPath: string;
+};
 type FreeScanResult = {
   url: string; grade: string; score: number;
   totalChecks: number; passed: number; failed: number; warnings: number;
@@ -12,6 +17,7 @@ type FreeScanResult = {
   gpc: { supported: boolean; details: string };
   ssl: { secure: boolean; details: string };
   waf?: { detected: boolean; detail: string; whitelistGuide: string };
+  breachHistory?: { breached: boolean; totalBreaches: number; totalPwnedAccounts: number; breaches: BreachRecord[]; error?: string };
   timestamp: string;
 };
 
@@ -157,6 +163,79 @@ function FreeScanContent() {
             <div className="text-xs text-slate-400">{result.gpc.details}</div>
           </div>
         </div>
+
+        {/* 🔓 Data Breach History (HIBP) */}
+        {result.breachHistory && (
+          <div className={`rounded-2xl border overflow-hidden ${
+            result.breachHistory.breached
+              ? 'bg-red-500/5 border-red-500/30'
+              : 'bg-green-500/5 border-green-500/20'
+          }`}>
+            <div className={`p-5 flex items-center gap-4 ${
+              result.breachHistory.breached ? 'bg-red-500/10' : ''
+            }`}>
+              {result.breachHistory.breached
+                ? <Skull className="w-6 h-6 text-red-500 shrink-0" />
+                : <ShieldCheck className="w-6 h-6 text-green-500 shrink-0" />
+              }
+              <div className="flex-1">
+                <div className="font-bold text-sm">
+                  {result.breachHistory.breached
+                    ? `⚠ ${result.breachHistory.totalBreaches} Known Data Breach${result.breachHistory.totalBreaches > 1 ? 'es' : ''} Found`
+                    : '✓ No Known Data Breaches'
+                  }
+                </div>
+                <div className="text-xs text-slate-400">
+                  {result.breachHistory.breached
+                    ? `${result.breachHistory.totalPwnedAccounts.toLocaleString()} accounts compromised — Source: Have I Been Pwned`
+                    : 'This domain has no recorded breaches in the Have I Been Pwned database'
+                  }
+                </div>
+              </div>
+            </div>
+
+            {result.breachHistory.breached && result.breachHistory.breaches.map((breach, i) => (
+              <div key={i} className="border-t border-red-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  {breach.logoPath && (
+                    <img src={breach.logoPath} alt={breach.title} className="w-8 h-8 rounded-lg bg-white/10 p-0.5 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-red-400">{breach.title}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">{breach.breachDate}</span>
+                      {breach.isVerified && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">Verified</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {breach.pwnCount.toLocaleString()} accounts compromised
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {breach.dataClasses.map((dc, j) => (
+                        <span key={j} className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-300 border border-red-500/20">
+                          {dc}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {result.breachHistory.error && (
+              <div className="border-t border-yellow-500/10 p-3 text-xs text-yellow-400">
+                ⚠ {result.breachHistory.error}
+              </div>
+            )}
+
+            {result.breachHistory.breached && (
+              <div className="border-t border-red-500/10 p-3 bg-red-500/5 text-[10px] text-slate-500 text-center">
+                Data sourced from <a href="https://haveibeenpwned.com" target="_blank" rel="noopener" className="text-red-400 underline">haveibeenpwned.com</a> — Creative Commons Attribution 4.0
+              </div>
+            )}
+          </div>
+        )}
 
         {/* WAF Detection Warning */}
         {result.waf?.detected && (

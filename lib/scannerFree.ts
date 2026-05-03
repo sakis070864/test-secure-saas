@@ -7,6 +7,18 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 export type FreeCheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
 
+export type BreachRecord = {
+  name: string;
+  title: string;
+  domain: string;
+  breachDate: string;
+  pwnCount: number;
+  description: string;
+  dataClasses: string[];
+  isVerified: boolean;
+  logoPath: string;
+};
+
 export type FreeScanResult = {
   url: string; grade: string; score: number;
   totalChecks: number; passed: number; failed: number; warnings: number;
@@ -18,6 +30,7 @@ export type FreeScanResult = {
   gpc: { supported: boolean; details: string };
   ssl: { secure: boolean; details: string };
   waf: { detected: boolean; detail: string; whitelistGuide: string };
+  breachHistory: { breached: boolean; totalBreaches: number; totalPwnedAccounts: number; breaches: BreachRecord[]; error?: string };
   timestamp: string;
 };
 
@@ -166,6 +179,64 @@ async function checkGPC(origin: string) {
   } catch { return { supported: false, details: 'No GPC support declared' }; }
 }
 
+// ─── HAVE I BEEN PWNED — Breach Intelligence ───
+async function checkBreachHistory(domain: string): Promise<{ breached: boolean; totalBreaches: number; totalPwnedAccounts: number; breaches: BreachRecord[]; error?: string }> {
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 8000);
+    const r = await fetch(`https://haveibeenpwned.com/api/v3/breaches?domain=${encodeURIComponent(domain)}`, {
+      method: 'GET',
+      signal: c.signal,
+      headers: {
+        'User-Agent': 'ABCSecure-BreachCheck/1.0',
+        'Accept': 'application/json',
+      },
+    });
+    clearTimeout(t);
+
+    if (r.status === 404) {
+      return { breached: false, totalBreaches: 0, totalPwnedAccounts: 0, breaches: [] };
+    }
+
+    if (r.status === 429) {
+      return { breached: false, totalBreaches: 0, totalPwnedAccounts: 0, breaches: [], error: 'Rate limited by HIBP — try again later' };
+    }
+
+    if (!r.ok) {
+      return { breached: false, totalBreaches: 0, totalPwnedAccounts: 0, breaches: [], error: `HIBP API returned ${r.status}` };
+    }
+
+    const data = await r.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return { breached: false, totalBreaches: 0, totalPwnedAccounts: 0, breaches: [] };
+    }
+
+    const breaches: BreachRecord[] = data.map((b: any) => ({
+      name: b.Name || '',
+      title: b.Title || '',
+      domain: b.Domain || '',
+      breachDate: b.BreachDate || '',
+      pwnCount: b.PwnCount || 0,
+      description: b.Description || '',
+      dataClasses: b.DataClasses || [],
+      isVerified: b.IsVerified || false,
+      logoPath: b.LogoPath ? `https://logos.haveibeenpwned.com/${b.LogoPath}` : '',
+    }));
+
+    const totalPwnedAccounts = breaches.reduce((sum, b) => sum + b.pwnCount, 0);
+
+    return {
+      breached: true,
+      totalBreaches: breaches.length,
+      totalPwnedAccounts,
+      breaches: breaches.sort((a, b) => new Date(b.breachDate).getTime() - new Date(a.breachDate).getTime()),
+    };
+  } catch (err: any) {
+    return { breached: false, totalBreaches: 0, totalPwnedAccounts: 0, breaches: [], error: `Breach check failed: ${err.message}` };
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  MAIN FREE SCAN
 // ═══════════════════════════════════════════════════════════════
@@ -237,8 +308,15 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
   const soft404Res = await quickFetch(`${origin}/non-existent-${Math.random().toString(36).substring(7)}`, 'HEAD');
   const isSoft404 = soft404Res?.status === 200 || soft404Res?.status === 301 || soft404Res?.status === 302;
 
-  // Run checks
-  const [criticalFiles, gpc] = await Promise.all([checkCriticalFiles(origin, isSoft404), checkGPC(origin)]);
+  // Extract domain for breach check
+  const parsedDomain = new URL(targetUrl).hostname.replace(/^www\./, '');
+
+  // Run checks (including HIBP breach history)
+  const [criticalFiles, gpc, breachHistory] = await Promise.all([
+    checkCriticalFiles(origin, isSoft404),
+    checkGPC(origin),
+    checkBreachHistory(parsedDomain),
+  ]);
   const headers = checkHeaders(response, wafBlocked);
   const cookies = checkCookies(response);
   const cors = checkCORS(response);
@@ -258,6 +336,11 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
   }
   if (!ssl.secure) score -= 15;
   if (!gpc.supported) score -= 3;
+  // Breach history penalty: -5 per verified breach (max -20)
+  if (breachHistory.breached) {
+    const verifiedBreaches = breachHistory.breaches.filter(b => b.isVerified).length;
+    score -= Math.min(20, verifiedBreaches * 5);
+  }
   score = Math.max(0, Math.min(100, Math.round(score)));
 
   const grade = score >= 91 ? 'A' : score >= 71 ? 'B' : score >= 51 ? 'C' : score >= 31 ? 'D' : 'F';
@@ -266,7 +349,7 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
     url: targetUrl, grade, score,
     totalChecks: allChecks.length, passed, failed, warnings,
     headers, cookies, cors, criticalFiles,
-    technologies, gpc, ssl, waf,
+    technologies, gpc, ssl, waf, breachHistory,
     timestamp: new Date().toISOString(),
   };
 }
