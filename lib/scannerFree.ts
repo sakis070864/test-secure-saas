@@ -118,13 +118,22 @@ function checkCORS(response: Response): FreeCheckResult[] {
   return [{ name: 'CORS Policy', status: 'pass', detail: `Restricted to: ${acao}`, risk: 'None' }];
 }
 
-async function checkCriticalFiles(origin: string): Promise<FreeCheckResult[]> {
+async function checkCriticalFiles(origin: string, isSoft404: boolean): Promise<FreeCheckResult[]> {
   const results: FreeCheckResult[] = [];
   const checks = CRITICAL_FILES.map(async f => {
     const r = await quickFetch(`${origin}${f.path}`, 'HEAD', 4000);
     const s = r?.status || 0;
-    if (s === 200) results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE — ${f.desc}`, risk: f.risk });
-    else results.push({ name: f.path, status: 'pass', detail: 'Not found (secure)', risk: 'None' });
+    if (s === 200) {
+      if (isSoft404 && r?.headers.get('content-type')?.includes('text/html')) {
+        results.push({ name: f.path, status: 'pass', detail: 'Not found (SPA/Soft 404 fallback)', risk: 'None' });
+      } else {
+        results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE — ${f.desc}`, risk: f.risk });
+      }
+    } else if (s === 403) {
+      results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
+    } else {
+      results.push({ name: f.path, status: 'pass', detail: 'Not found (secure)', risk: 'None' });
+    }
   });
   await Promise.all(checks);
   return results;
@@ -224,8 +233,12 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
 
   const html = await response.text();
 
+  // Detect Soft 404 / SPA fallbacks
+  const soft404Res = await quickFetch(`${origin}/non-existent-${Math.random().toString(36).substring(7)}`, 'HEAD');
+  const isSoft404 = soft404Res?.status === 200 || soft404Res?.status === 301 || soft404Res?.status === 302;
+
   // Run checks
-  const [criticalFiles, gpc] = await Promise.all([checkCriticalFiles(origin), checkGPC(origin)]);
+  const [criticalFiles, gpc] = await Promise.all([checkCriticalFiles(origin, isSoft404), checkGPC(origin)]);
   const headers = checkHeaders(response, wafBlocked);
   const cookies = checkCookies(response);
   const cors = checkCORS(response);

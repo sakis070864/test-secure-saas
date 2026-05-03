@@ -63,7 +63,7 @@ function checkHeaders(response: Response, wafBlocked = false): CheckResult[] {
   });
 }
 
-async function checkExposedFiles(origin: string): Promise<CheckResult[]> {
+async function checkExposedFiles(origin: string, isSoft404: boolean): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const batches: typeof SENSITIVE_PATHS[] = [];
   for (let i = 0; i < SENSITIVE_PATHS.length; i += 15) batches.push(SENSITIVE_PATHS.slice(i, i + 15));
@@ -73,7 +73,11 @@ async function checkExposedFiles(origin: string): Promise<CheckResult[]> {
       const r = await quickFetch(`${origin}${f.path}`, 'HEAD', 4000);
       const s = r?.status || 0;
       if (s === 200) {
-        results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE (${s}) — ${f.desc}`, risk: f.risk });
+        if (isSoft404 && r?.headers.get('content-type')?.includes('text/html')) {
+          results.push({ name: f.path, status: 'pass', detail: 'Not found (SPA/Soft 404 fallback)', risk: 'None' });
+        } else {
+          results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE (${s}) — ${f.desc}`, risk: f.risk });
+        }
       } else if (s === 403) {
         results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
       } else {
@@ -85,13 +89,19 @@ async function checkExposedFiles(origin: string): Promise<CheckResult[]> {
   return results;
 }
 
-async function checkAdminPanels(origin: string): Promise<CheckResult[]> {
+async function checkAdminPanels(origin: string, isSoft404: boolean): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const checks = ADMIN_PANELS.map(async (p) => {
     const r = await quickFetch(`${origin}${p.path}`, 'HEAD', 4000);
     const s = r?.status || 0;
     if (s === 200 || s === 301 || s === 302) {
-      results.push({ name: `${p.path} (${p.name})`, status: 'fail', detail: `Accessible (${s}) — admin interface exposed`, risk: 'High' });
+      if (isSoft404 && s === 200 && r?.headers.get('content-type')?.includes('text/html')) {
+        results.push({ name: `${p.path} (${p.name})`, status: 'pass', detail: 'Not accessible (SPA/Soft 404 fallback)', risk: 'None' });
+      } else if (isSoft404 && (s === 301 || s === 302)) {
+        results.push({ name: `${p.path} (${p.name})`, status: 'pass', detail: 'Not accessible (Global Redirect)', risk: 'None' });
+      } else {
+        results.push({ name: `${p.path} (${p.name})`, status: 'fail', detail: `Accessible (${s}) — admin interface exposed`, risk: 'High' });
+      }
     } else {
       results.push({ name: `${p.path} (${p.name})`, status: 'pass', detail: 'Not accessible (secure)', risk: 'None' });
     }
@@ -357,9 +367,13 @@ export async function performDeepScan(targetUrl: string): Promise<DeepScanResult
 
   const html = await response.text();
 
+  // Detect Soft 404 / SPA fallbacks
+  const soft404Res = await quickFetch(`${origin}/non-existent-${Math.random().toString(36).substring(7)}`, 'HEAD');
+  const isSoft404 = soft404Res?.status === 200 || soft404Res?.status === 301 || soft404Res?.status === 302;
+
   // Run all checks in parallel
   const [exposedFiles, adminPanels, httpMethods, gpc] = await Promise.all([
-    checkExposedFiles(origin), checkAdminPanels(origin), checkHTTPMethods(origin), checkGPC(origin)
+    checkExposedFiles(origin, isSoft404), checkAdminPanels(origin, isSoft404), checkHTTPMethods(origin), checkGPC(origin)
   ]);
 
   const headers = checkHeaders(response, wafBlocked);
