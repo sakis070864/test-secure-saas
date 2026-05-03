@@ -3,7 +3,7 @@
 //  Lightweight version: headers, SSL, cookies, CORS, basic files
 // ═══════════════════════════════════════════════════════════════
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
 
 export type FreeCheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
 
@@ -167,9 +167,37 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
   const tid = setTimeout(() => controller.abort(), 12000);
   let response: Response;
   try {
-    response = await fetch(targetUrl, { method: 'GET', signal: controller.signal, redirect: 'follow', headers: { 'User-Agent': UA, 'Sec-GPC': '1' } });
+    response = await fetch(targetUrl, { method: 'GET', signal: controller.signal, redirect: 'follow', headers: {
+      'User-Agent': UA, 'Sec-GPC': '1',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+    } });
     clearTimeout(tid);
   } catch (err: any) { clearTimeout(tid); throw new Error(`Cannot reach website: ${err.message}`); }
+
+  // If Cloudflare blocked us (403), retry with browser-like Sec-Fetch headers
+  if (response.status === 403) {
+    try {
+      const c2 = new AbortController();
+      const t2 = setTimeout(() => c2.abort(), 12000);
+      const retry = await fetch(targetUrl, { method: 'GET', signal: c2.signal, redirect: 'manual', headers: {
+        'User-Agent': UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+      } });
+      clearTimeout(t2);
+      if (retry.status === 200) response = retry;
+    } catch { /* use original 403 response */ }
+  }
 
   const html = await response.text();
 
