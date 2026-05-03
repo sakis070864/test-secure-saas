@@ -11,6 +11,7 @@ type FreeScanResult = {
   technologies: Array<{ name: string; category: string }>;
   gpc: { supported: boolean; details: string };
   ssl: { secure: boolean; details: string };
+  waf?: { detected: boolean; detail: string; whitelistGuide: string };
   timestamp: string;
 };
 
@@ -156,6 +157,23 @@ function FreeScanContent() {
             <div className="text-xs text-slate-400">{result.gpc.details}</div>
           </div>
         </div>
+
+        {/* WAF Detection Warning */}
+        {result.waf?.detected && (
+          <div className="rounded-2xl p-5 border bg-yellow-500/5 border-yellow-500/20">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-6 h-6 text-yellow-500 shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                <div className="font-bold text-sm text-yellow-400">⚠ Web Application Firewall Detected</div>
+                <p className="text-xs text-slate-400">{result.waf.detail}</p>
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-yellow-400/80 hover:text-yellow-400 font-medium">How to whitelist our scanner for a complete scan →</summary>
+                  <pre className="mt-2 p-3 bg-black/30 rounded-lg text-slate-400 whitespace-pre-wrap text-[11px] leading-relaxed">{result.waf.whitelistGuide}</pre>
+                </details>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Check Sections */}
         <Section title="🛡️ Security Headers" checks={result.headers} open={true} />

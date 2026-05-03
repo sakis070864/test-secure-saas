@@ -3,7 +3,7 @@
 //  Lightweight version: headers, SSL, cookies, CORS, basic files
 // ═══════════════════════════════════════════════════════════════
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 ABCSecure-Audit/1.0';
 
 export type FreeCheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
 
@@ -17,6 +17,7 @@ export type FreeScanResult = {
   technologies: Array<{ name: string; category: string }>;
   gpc: { supported: boolean; details: string };
   ssl: { secure: boolean; details: string };
+  waf: { detected: boolean; detail: string; whitelistGuide: string };
   timestamp: string;
 };
 
@@ -72,12 +73,12 @@ async function quickFetch(url: string, method = 'HEAD', timeout = 5000): Promise
 }
 
 // ─── Check Functions ───
-function checkHeaders(response: Response): FreeCheckResult[] {
+function checkHeaders(response: Response, wafBlocked = false): FreeCheckResult[] {
   return CORE_HEADERS.map(h => {
     const val = response.headers.get(h.name);
-    return val
-      ? { name: h.name, status: 'pass' as const, detail: `Present: ${val.substring(0, 60)}`, risk: 'None' }
-      : { name: h.name, status: 'fail' as const, detail: `Missing — ${h.desc}`, risk: 'Medium' };
+    if (val) return { name: h.name, status: 'pass' as const, detail: `Present: ${val.substring(0, 60)}`, risk: 'None' };
+    if (wafBlocked) return { name: h.name, status: 'warn' as const, detail: `Cannot verify — WAF/Firewall blocked the scan (HTTP 403). ${h.desc}`, risk: 'Low' };
+    return { name: h.name, status: 'fail' as const, detail: `Missing — ${h.desc}`, risk: 'Medium' };
   });
 }
 
@@ -199,11 +200,33 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
     } catch { /* use original 403 response */ }
   }
 
+  // Detect WAF/Firewall blocking
+  const wafBlocked = response.status === 403 || response.status === 503;
+  const waf = wafBlocked
+    ? {
+        detected: true,
+        detail: `Web Application Firewall detected (HTTP ${response.status}). Header verification may be incomplete.`,
+        whitelistGuide: [
+          'To get a complete scan, whitelist our scanner in your WAF/Firewall:',
+          '',
+          '▸ Cloudflare: Security → WAF → Custom Rules → Create Rule:',
+          '  Field: User Agent | Operator: contains | Value: "ABCSecure-Audit"',
+          '  Action: Skip (or Allow)',
+          '',
+          '▸ Sucuri: Dashboard → Access Control → Whitelist User Agent → Add "ABCSecure-Audit"',
+          '',
+          '▸ AWS WAF: Create an Allow rule for User-Agent containing "ABCSecure-Audit"',
+          '',
+          'After whitelisting, re-run the scan for complete results.',
+        ].join('\n'),
+      }
+    : { detected: false, detail: 'No WAF blocking detected — full scan completed.', whitelistGuide: '' };
+
   const html = await response.text();
 
   // Run checks
   const [criticalFiles, gpc] = await Promise.all([checkCriticalFiles(origin), checkGPC(origin)]);
-  const headers = checkHeaders(response);
+  const headers = checkHeaders(response, wafBlocked);
   const cookies = checkCookies(response);
   const cors = checkCORS(response);
   const ssl = checkSSL(targetUrl);
@@ -230,7 +253,7 @@ export async function performFreeScan(targetUrl: string): Promise<FreeScanResult
     url: targetUrl, grade, score,
     totalChecks: allChecks.length, passed, failed, warnings,
     headers, cookies, cors, criticalFiles,
-    technologies, gpc, ssl,
+    technologies, gpc, ssl, waf,
     timestamp: new Date().toISOString(),
   };
 }

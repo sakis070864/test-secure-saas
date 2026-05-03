@@ -258,6 +258,25 @@ function SuccessContent() {
 
         {/* Homepage Checks */}
         <h3 className="text-lg font-bold mt-8 flex items-center gap-2"><Shield className="w-5 h-5 text-red-500" /> Homepage Security Audit</h3>
+
+        {/* WAF Detection Warning */}
+        {hs.waf?.detected && (
+          <div className="rounded-2xl p-5 border bg-yellow-500/5 border-yellow-500/20">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-6 h-6 text-yellow-500 shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                <div className="font-bold text-sm text-yellow-400">⚠ Web Application Firewall Detected</div>
+                <p className="text-xs text-slate-400">{hs.waf.detail}</p>
+                <p className="text-xs text-slate-500">Some security headers may show as &quot;WARN&quot; instead of &quot;PASS&quot; because the firewall blocked our scanner before reaching your server. This does NOT mean your headers are missing — it means we could not verify them.</p>
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-yellow-400/80 hover:text-yellow-400 font-medium">How to whitelist our scanner for a complete scan →</summary>
+                  <pre className="mt-2 p-3 bg-black/30 rounded-lg text-slate-400 whitespace-pre-wrap text-[11px] leading-relaxed">{hs.waf.whitelistGuide}</pre>
+                </details>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Section title="Security Headers" icon={<Shield className="w-5 h-5 text-red-400" />} checks={hs.headers} open={true} />
         <Section title="Exposed Files" icon={<AlertTriangle className="w-5 h-5 text-orange-400" />} checks={hs.exposedFiles} />
         <Section title="Admin Panels" icon={<Server className="w-5 h-5 text-orange-400" />} checks={hs.adminPanels} />

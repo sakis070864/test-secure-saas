@@ -9,10 +9,17 @@ import {
   DANGEROUS_HTTP_METHODS
 } from './scanChecks';
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 ABCSecure-Audit/1.0';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
+
+// WAF detection info included in scan results
+export type WafInfo = {
+  detected: boolean;
+  detail: string;
+  whitelistGuide: string;
+};
 
 export type DeepScanResult = {
   url: string; grade: string; score: number;
@@ -28,6 +35,7 @@ export type DeepScanResult = {
   trackers: { found: number; list: Array<{ name: string; type: string }> };
   gpc: { supported: boolean; details: string };
   htmlAnalysis: CheckResult[];
+  waf: WafInfo;
   timestamp: string;
 };
 
@@ -46,10 +54,11 @@ async function quickFetch(url: string, method = 'HEAD', timeout = 5000): Promise
 //  CHECK FUNCTIONS — Each returns CheckResult[]
 // ═══════════════════════════════════════════════════════════════
 
-function checkHeaders(response: Response): CheckResult[] {
+function checkHeaders(response: Response, wafBlocked = false): CheckResult[] {
   return SECURITY_HEADERS.map(h => {
     const val = response.headers.get(h.name);
     if (val) return { name: h.name, status: 'pass' as const, detail: `Present: ${val.substring(0, 80)}`, risk: 'None' };
+    if (wafBlocked) return { name: h.name, status: 'warn' as const, detail: `Cannot verify — WAF/Firewall blocked the scan (HTTP 403). ${h.desc}`, risk: 'Low' };
     return { name: h.name, status: 'fail' as const, detail: `Missing — ${h.desc}`, risk: 'Medium' };
   });
 }
@@ -324,6 +333,28 @@ export async function performDeepScan(targetUrl: string): Promise<DeepScanResult
     } catch { /* use original 403 response */ }
   }
 
+  // Detect WAF/Firewall blocking
+  const wafBlocked = response.status === 403 || response.status === 503;
+  const waf: WafInfo = wafBlocked
+    ? {
+        detected: true,
+        detail: `Web Application Firewall detected (HTTP ${response.status}). Header verification may be incomplete because the firewall blocked our scanner before reaching your server.`,
+        whitelistGuide: [
+          'To get a complete scan, whitelist our scanner in your WAF/Firewall:',
+          '',
+          '▸ Cloudflare: Go to Security → WAF → Custom Rules → Create Rule:',
+          '  Field: User Agent | Operator: contains | Value: "ABCSecure-Audit"',
+          '  Action: Skip (or Allow)',
+          '',
+          '▸ Sucuri: Go to Dashboard → Access Control → Whitelist User Agent → Add "ABCSecure-Audit"',
+          '',
+          '▸ AWS WAF: Create an Allow rule matching the User-Agent header containing "ABCSecure-Audit"',
+          '',
+          'After whitelisting, re-run the scan for complete results.',
+        ].join('\n'),
+      }
+    : { detected: false, detail: 'No WAF blocking detected — full scan completed.', whitelistGuide: '' };
+
   const html = await response.text();
 
   // Run all checks in parallel
@@ -331,7 +362,7 @@ export async function performDeepScan(targetUrl: string): Promise<DeepScanResult
     checkExposedFiles(origin), checkAdminPanels(origin), checkHTTPMethods(origin), checkGPC(origin)
   ]);
 
-  const headers = checkHeaders(response);
+  const headers = checkHeaders(response, wafBlocked);
   const cookies = checkCookies(response);
   const cors = checkCORS(response);
   const infoDisclosure = checkInfoDisclosure(response);
@@ -371,7 +402,7 @@ export async function performDeepScan(targetUrl: string): Promise<DeepScanResult
     totalChecks: allChecks.length, passed, failed, warnings,
     headers, exposedFiles, adminPanels, cookies, cors,
     infoDisclosure, httpMethods, technologies,
-    trackers, gpc, htmlAnalysis,
+    trackers, gpc, htmlAnalysis, waf,
     timestamp: new Date().toISOString()
   };
 }
