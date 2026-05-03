@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Skull, ShieldCheck, Search, Loader2, AlertTriangle, ArrowLeft, ExternalLink, Sun, Moon, Lock, Eye, EyeOff, Globe, KeyRound } from 'lucide-react';
+import { Skull, ShieldCheck, Search, Loader2, AlertTriangle, ArrowLeft, ExternalLink, Sun, Moon, Lock, Eye, EyeOff, Globe, KeyRound, Mail } from 'lucide-react';
 
 type Breach = {
   name: string; title: string; domain: string; breachDate: string; addedDate: string;
@@ -10,7 +10,7 @@ type Breach = {
 };
 
 type BreachResult = {
-  domain: string; breached: boolean; totalBreaches: number;
+  domain?: string; email?: string; breached: boolean; totalBreaches: number;
   totalPwnedAccounts: number; breaches: Breach[];
 };
 
@@ -21,12 +21,17 @@ export default function BreachCheckPage() {
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [dark, setDark] = useState(true);
-  const [activeTab, setActiveTab] = useState<'domain' | 'password'>('domain');
+  const [activeTab, setActiveTab] = useState<'domain' | 'password' | 'email'>('domain');
   const [password, setPassword] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
   const [pwResult, setPwResult] = useState<{ found: boolean; count: number } | null>(null);
   const [pwError, setPwError] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailResult, setEmailResult] = useState<BreachResult | null>(null);
+  const [emailError, setEmailError] = useState('');
+  const [emailNeedsKey, setEmailNeedsKey] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('breach-theme');
@@ -92,6 +97,34 @@ export default function BreachCheckPage() {
       setPwError('Could not check password. Please try again.');
     } finally {
       setPwLoading(false);
+    }
+  }
+
+  async function handleEmailCheck() {
+    if (!emailInput.trim()) return;
+    setEmailLoading(true);
+    setEmailError('');
+    setEmailResult(null);
+    setEmailNeedsKey(false);
+    try {
+      const res = await fetch('/api/email-breach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.needsKey) {
+        setEmailNeedsKey(true);
+        setEmailError(data.error);
+      } else if (data.error) {
+        setEmailError(data.error);
+      } else {
+        setEmailResult(data);
+      }
+    } catch {
+      setEmailError('Connection failed. Please try again.');
+    } finally {
+      setEmailLoading(false);
     }
   }
 
@@ -167,12 +200,14 @@ export default function BreachCheckPage() {
             Powered by Have I Been Pwned
           </div>
           <h1 className="text-4xl sm:text-5xl font-black mb-4">
-            {activeTab === 'domain' ? <>Has this site been <span className="text-red-500">hacked</span>?</> : <>Is your password <span className="text-red-500">compromised</span>?</>}
+            {activeTab === 'domain' && <>Has this site been <span className="text-red-500">hacked</span>?</>}
+            {activeTab === 'password' && <>Is your password <span className="text-red-500">compromised</span>?</>}
+            {activeTab === 'email' && <>Has your email been <span className="text-red-500">exposed</span>?</>}
           </h1>
           <p className={`${textMuted} text-lg max-w-xl mx-auto`}>
-            {activeTab === 'domain'
-              ? 'Enter any website domain to check if it has been involved in a known data breach.'
-              : 'Check if your password has appeared in any known data breaches. Your password is never sent over the internet.'}
+            {activeTab === 'domain' && 'Enter any website domain to check if it has been involved in a known data breach.'}
+            {activeTab === 'password' && 'Check if your password has appeared in any known data breaches. Your password is never sent over the internet.'}
+            {activeTab === 'email' && 'Check if your email address has been compromised in any known data breaches.'}
           </p>
         </div>
 
@@ -180,6 +215,9 @@ export default function BreachCheckPage() {
         <div className="flex justify-center gap-3 mb-10">
           <button onClick={() => setActiveTab('domain')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border text-sm font-medium transition-all ${activeTab === 'domain' ? tabActive : tabInactive}`}>
             <Globe className="w-4 h-4" /> Site Breach
+          </button>
+          <button onClick={() => setActiveTab('email')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border text-sm font-medium transition-all ${activeTab === 'email' ? tabActive : tabInactive}`}>
+            <Mail className="w-4 h-4" /> Email Breach
           </button>
           <button onClick={() => setActiveTab('password')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border text-sm font-medium transition-all ${activeTab === 'password' ? tabActive : tabInactive}`}>
             <KeyRound className="w-4 h-4" /> Password Check
@@ -297,6 +335,166 @@ export default function BreachCheckPage() {
                   <li>• Consider using passphrases (4+ random words)</li>
                 </ul>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ EMAIL TAB ═══ */}
+
+        {/* Email Search Box */}
+        {activeTab === 'email' && (
+        <div className="relative max-w-2xl mx-auto mb-10">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${textDim}`} />
+              <input
+                type="email"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleEmailCheck(); }}
+                placeholder="Enter email address (e.g. you@example.com)"
+                className={`w-full pl-12 pr-4 py-4 ${inputBg} border rounded-2xl focus:outline-none ${inputFocus} focus:ring-1 text-lg transition-all`}
+                disabled={emailLoading}
+              />
+            </div>
+            <button
+              onClick={handleEmailCheck}
+              disabled={emailLoading || !emailInput.trim()}
+              className="px-8 py-4 bg-red-600 hover:bg-red-700 disabled:bg-red-600/30 disabled:cursor-not-allowed rounded-2xl font-bold text-lg text-white transition-all flex items-center gap-2 shrink-0"
+            >
+              {emailLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+              Check
+            </button>
+          </div>
+        </div>
+        )}
+
+        {/* Email Needs API Key */}
+        {activeTab === 'email' && emailNeedsKey && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className={`rounded-2xl ${dark ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-50 border-amber-200'} border p-8 text-center`}>
+              <Lock className={`w-12 h-12 ${dark ? 'text-amber-400' : 'text-amber-500'} mx-auto mb-4`} />
+              <h2 className={`text-xl font-bold ${dark ? 'text-amber-400' : 'text-amber-600'} mb-2`}>API Key Required</h2>
+              <p className={`${textMuted} mb-4`}>
+                Email breach lookups require a paid HIBP API key ($3.50/month).
+              </p>
+              <a
+                href="https://haveibeenpwned.com/API/Key"
+                target="_blank"
+                rel="noopener"
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl ${dark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'} font-medium text-sm transition-all`}
+              >
+                Get API Key <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+              <p className={`text-xs ${textDimmer} mt-4`}>
+                Once obtained, add <code className={`${dark ? 'bg-white/10' : 'bg-gray-200'} px-1.5 py-0.5 rounded`}>HIBP_API_KEY=your_key</code> to your environment variables.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Email Error */}
+        {activeTab === 'email' && emailError && !emailNeedsKey && (
+          <div className={`max-w-2xl mx-auto mb-8 p-4 rounded-2xl ${dark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200'} border flex items-center gap-3`}>
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className={`text-sm ${redText}`}>{emailError}</p>
+          </div>
+        )}
+
+        {/* Email Loading */}
+        {activeTab === 'email' && emailLoading && (
+          <div className="text-center py-16">
+            <Loader2 className="w-10 h-10 text-red-500 animate-spin mx-auto mb-4" />
+            <p className={textMuted}>Checking email breach database...</p>
+          </div>
+        )}
+
+        {/* Email Result: SAFE */}
+        {activeTab === 'email' && emailResult && !emailResult.breached && (
+          <div className="max-w-2xl mx-auto">
+            <div className={`rounded-2xl ${greenCard} border p-8 text-center`}>
+              <ShieldCheck className={`w-16 h-16 ${greenText} mx-auto mb-4`} />
+              <h2 className={`text-2xl font-black ${greenText} mb-2`}>No Breaches Found</h2>
+              <p className={textMuted}>
+                <span className={`${text} font-semibold`}>{emailResult.email}</span> has no recorded data breaches in the Have I Been Pwned database.
+              </p>
+              <p className={`text-xs ${textDimmer} mt-4`}>This does not guarantee your email has never been compromised — only that no breach has been publicly reported and loaded into HIBP.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Email Result: BREACHED */}
+        {activeTab === 'email' && emailResult && emailResult.breached && (
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* Summary Card */}
+            <div className={`rounded-2xl ${redCard} border p-8 text-center`}>
+              <Skull className={`w-16 h-16 ${redText} mx-auto mb-4`} />
+              <h2 className={`text-2xl font-black ${redText} mb-2`}>
+                {emailResult.totalBreaches} Data Breach{emailResult.totalBreaches > 1 ? 'es' : ''} Found
+              </h2>
+              <p className={textMuted}>
+                <span className={`${text} font-semibold`}>{emailResult.email}</span> has been involved in known data breaches.
+              </p>
+              <div className="flex justify-center gap-8 mt-6">
+                <div>
+                  <div className={`text-3xl font-black ${redText}`}>{emailResult.totalBreaches}</div>
+                  <div className={`text-xs ${textDim}`}>Breaches</div>
+                </div>
+                <div className={`w-px ${dividerBg}`} />
+                <div>
+                  <div className={`text-3xl font-black ${redText}`}>{formatNumber(emailResult.totalPwnedAccounts)}</div>
+                  <div className={`text-xs ${textDim}`}>Accounts Compromised</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Individual Breaches */}
+            {emailResult.breaches.map((breach, i) => (
+              <div key={i} className={`rounded-2xl ${cardBg} border overflow-hidden hover:border-red-500/20 transition-colors`}>
+                <div className="p-5 flex items-start gap-4">
+                  {breach.logoPath ? (
+                    <img src={breach.logoPath} alt={breach.title} className={`w-12 h-12 rounded-xl ${dark ? 'bg-white/10' : 'bg-gray-100'} p-1 shrink-0`} />
+                  ) : (
+                    <div className={`w-12 h-12 rounded-xl ${dark ? 'bg-red-500/10' : 'bg-red-50'} flex items-center justify-center shrink-0`}>
+                      <Skull className={`w-6 h-6 ${redText}`} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h3 className="text-lg font-bold">{breach.title}</h3>
+                      {breach.isVerified && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${dark ? 'bg-yellow-500/20 text-yellow-300' : 'bg-yellow-100 text-yellow-700'}`}>Verified</span>
+                      )}
+                    </div>
+                    <div className={`flex items-center gap-4 text-xs ${textDim}`}>
+                      <span>📅 Breach Date: <span className={dark ? 'text-slate-300' : 'text-gray-700'}>{breach.breachDate}</span></span>
+                      <span>👤 {breach.pwnCount.toLocaleString()} accounts</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-5 pb-4">
+                  <p className={`text-sm ${textMuted} leading-relaxed`}>{stripHtml(breach.description)}</p>
+                </div>
+                <div className="px-5 pb-5">
+                  <div className={`text-[10px] ${textDimmer} uppercase tracking-wider mb-2 font-medium`}>Compromised Data</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {breach.dataClasses.map((dc, j) => (
+                      <span key={j} className={`text-xs px-2.5 py-1 rounded-full border ${breachTagBg}`}>
+                        {dc}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Attribution */}
+            <div className={`rounded-2xl ${attrCard} border p-4 text-center text-xs ${textDimmer}`}>
+              Data sourced from{' '}
+              <a href="https://haveibeenpwned.com" target="_blank" rel="noopener" className="text-red-400 hover:text-red-300 underline inline-flex items-center gap-1">
+                haveibeenpwned.com <ExternalLink className="w-3 h-3" />
+              </a>
+              {' '}— Licensed under Creative Commons Attribution 4.0
             </div>
           </div>
         )}
