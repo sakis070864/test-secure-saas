@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ShieldAlert, Lock, CheckCircle2, AlertTriangle, ArrowRight, Loader2, Shield, Cpu, FileText, Globe, Server, Eye, Zap, ChevronDown, Sparkles, Skull } from 'lucide-react';
+import { ShieldAlert, Lock, CheckCircle2, AlertTriangle, ArrowRight, Loader2, Shield, Cpu, FileText, Globe, Server, Eye, Zap, ChevronDown, Sparkles, Skull, Sun, Moon } from 'lucide-react';
 
 function LandingContent() {
   const searchParams = useSearchParams();
@@ -15,6 +15,31 @@ function LandingContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
+  const [dark, setDark] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('app-theme');
+    if (saved === 'light') setDark(false);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('app-theme', dark ? 'dark' : 'light');
+  }, [dark]);
+
+  const t = {
+    bg: dark ? 'bg-[#030712]' : 'bg-[#f8f9fa]',
+    text: dark ? 'text-white' : 'text-gray-900',
+    muted: dark ? 'text-slate-400' : 'text-gray-500',
+    dim: dark ? 'text-slate-500' : 'text-gray-400',
+    dimmer: dark ? 'text-slate-600' : 'text-gray-300',
+    border: dark ? 'border-white/5' : 'border-gray-200',
+    border10: dark ? 'border-white/10' : 'border-gray-200',
+    cardBg: dark ? 'bg-white/[0.02]' : 'bg-white',
+    inputBg: dark ? 'bg-white/5 border-white/10 text-white placeholder-slate-600' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400',
+    navBg: dark ? '' : 'bg-white/80 backdrop-blur-xl',
+    gridOpacity: dark ? 0.03 : 0.02,
+    glowOpacity: dark ? 0.05 : 0.02,
+  };
 
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
@@ -57,19 +82,19 @@ function LandingContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030712] text-white overflow-hidden">
+    <div className={`min-h-screen ${t.bg} ${t.text} overflow-hidden transition-colors duration-300`}>
       {/* Animated Grid Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0" style={{
-          backgroundImage: `linear-gradient(rgba(220,38,38,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,0.03) 1px, transparent 1px)`,
+          backgroundImage: `linear-gradient(rgba(220,38,38,${t.gridOpacity}) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,${t.gridOpacity}) 1px, transparent 1px)`,
           backgroundSize: '60px 60px',
         }} />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-red-600/5 blur-[160px]" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-red-900/10 blur-[120px]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-red-600/5 blur-[160px]" style={{opacity: dark ? 1 : 0.3}} />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-red-900/10 blur-[120px]" style={{opacity: dark ? 1 : 0.3}} />
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-10 border-b border-white/5">
+      <nav className={`relative z-10 border-b ${t.border} ${t.navBg} transition-colors duration-300`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShieldAlert className="w-7 h-7 text-red-500" />
@@ -80,7 +105,10 @@ function LandingContent() {
               <Skull className="w-4 h-4" />
               Site Breached?
             </a>
-            <a href="https://sakis-athan.com" target="_blank" className="text-sm text-slate-400 hover:text-white transition-colors">Get Support</a>
+            <button onClick={() => setDark(!dark)} className={`p-2 rounded-xl border transition-all ${dark ? 'bg-white/5 border-white/10 hover:bg-white/10 text-yellow-400' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-600'}`} title={dark ? 'Light Mode' : 'Dark Mode'}>
+              {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <a href="https://sakis-athan.com" target="_blank" className={`text-sm ${t.muted} hover:opacity-80 transition-colors`}>Get Support</a>
           </div>
         </div>
       </nav>
@@ -108,7 +136,7 @@ function LandingContent() {
               <br />
               <span className="text-white">Before Hackers Do</span>
             </h1>
-            <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-4 leading-relaxed">
+            <p className={`text-base sm:text-lg ${t.muted} max-w-2xl mx-auto mb-4 leading-relaxed`}>
               Our engine <span className="text-cyan-400 font-semibold">crawls every page</span> of your site,{' '}
               <span className="text-yellow-400 font-semibold">maps every link, form & parameter</span>,{' '}
               then launches <span className="text-red-400 font-semibold">real attack payloads</span> —{' '}
@@ -136,7 +164,7 @@ function LandingContent() {
         <section className="pb-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <h2 className="text-2xl sm:text-3xl font-black text-center mb-3">How The Scanner Works</h2>
-            <p className="text-sm text-slate-500 text-center mb-12 max-w-xl mx-auto">Our automated 4-phase pipeline scans, crawls, attacks, and audits your entire infrastructure — so you don&apos;t have to.</p>
+            <p className={`text-sm ${t.dim} text-center mb-12 max-w-xl mx-auto`}>Our automated 4-phase pipeline scans, crawls, attacks, and audits your entire infrastructure — so you don&apos;t have to.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
 
@@ -255,12 +283,12 @@ function LandingContent() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
 
               {/* ── FREE ── */}
-              <div className="bg-white/[0.02] border border-white/10 rounded-3xl p-6 sm:p-8 hover:border-white/20 transition-all">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Free</div>
+              <div className={`${t.cardBg} border ${t.border10} rounded-3xl p-6 sm:p-8 hover:border-white/20 transition-all`}>
+                <div className={`text-xs font-bold ${t.dim} uppercase tracking-wider mb-2`}>Free</div>
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-black">$0</span>
                 </div>
-                <p className="text-xs text-slate-500 mb-6">Quick security check</p>
+                <p className={`text-xs ${t.dim} mb-6`}>Quick security check</p>
                 <ul className="space-y-2 text-sm text-slate-400 mb-6">
                   <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> ~50 security checks</li>
                   <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> 8 security headers</li>
@@ -272,8 +300,8 @@ function LandingContent() {
                 </ul>
                 <form onSubmit={handleFree} className="space-y-3">
                   <input type="text" value={freeUrl} onChange={e => setFreeUrl(e.target.value)} placeholder="example.com" required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-slate-500/50 transition-all" />
-                  <button type="submit" className="w-full bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
+                    className={`w-full ${t.inputBg} border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-slate-500/50 transition-all`} />
+                  <button type="submit" className={`w-full ${dark ? 'bg-white/10 hover:bg-white/15 border-white/10 text-white' : 'bg-gray-200 hover:bg-gray-300 border-gray-200 text-gray-900'} border font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all`}>
                     <Zap className="w-4 h-4" /> Run Free Scan
                   </button>
                 </form>
@@ -419,7 +447,7 @@ function LandingContent() {
         </section>
       </main>
 
-      <footer className="border-t border-white/5 py-8 text-center text-xs text-slate-600">
+      <footer className={`border-t ${t.border} py-8 text-center text-xs ${t.dimmer}`}>
         <p>© {new Date().getFullYear()} ABCSecure — Enterprise Cybersecurity</p>
         <p className="mt-1">Professional Security Assessment Services — abcsecure.com</p>
       </footer>
