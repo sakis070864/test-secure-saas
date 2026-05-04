@@ -4,7 +4,7 @@ import { attackPages } from '@/lib/attacker';
 import type { DiscoveredForm } from '@/lib/spider';
 import { verifyAdminToken } from '@/app/api/admin-auth/route';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     if (!isTestMode && !isAdmin) {
       if (!sessionId) return NextResponse.json({ error: 'Payment required' }, { status: 403 });
       try {
+        const stripe = getStripe();
         const session = await stripe.checkout.sessions.retrieve(sessionId);
         if (session.payment_status !== 'paid') {
           return NextResponse.json({ error: 'Payment not completed' }, { status: 403 });

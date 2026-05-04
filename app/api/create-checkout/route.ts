@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const TIER_CONFIG = {
   standard: {
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     const origin = request.headers.get('origin') || 'https://abcsecure.com';
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       payment_method_types: ['card'],
       customer_email: email,
       line_items: [{
