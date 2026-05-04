@@ -584,17 +584,19 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
       risk: 'None', category: 'subdomain',
     });
 
-    // Flag potentially dangerous subdomains
+    // List each verified subdomain individually
     const dangerousSubs = ['admin', 'phpmyadmin', 'staging', 'dev', 'test', 'backup', 'db', 'database', 'mysql', 'mongo', 'redis', 'jenkins', 'git', 'gitlab', 'grafana', 'kibana', 'internal', 'cpanel', 'whm', 'plesk'];
     for (const sub of alive) {
-      if (dangerousSubs.includes(sub.subdomain)) {
-        checks.push({
-          name: `Exposed: ${sub.fullDomain}`,
-          status: 'warn',
-          detail: `Potentially sensitive subdomain "${sub.subdomain}" is publicly accessible (${sub.statusCode})`,
-          risk: 'Medium', category: 'subdomain',
-        });
-      }
+      const isDangerous = dangerousSubs.includes(sub.subdomain);
+      checks.push({
+        name: isDangerous ? `⚠ ${sub.fullDomain}` : `✓ ${sub.fullDomain}`,
+        status: isDangerous ? 'warn' : 'pass',
+        detail: isDangerous
+          ? `Potentially sensitive subdomain "${sub.subdomain}" is publicly accessible (HTTP ${sub.statusCode})`
+          : `Active subdomain — HTTP ${sub.statusCode}`,
+        risk: isDangerous ? 'Medium' : 'None',
+        category: 'subdomain',
+      });
     }
   } else {
     const filteredNote = wildcardFiltered > 0
