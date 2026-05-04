@@ -589,7 +589,7 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
     for (const sub of alive) {
       const isDangerous = dangerousSubs.includes(sub.subdomain);
       checks.push({
-        name: isDangerous ? `⚠ ${sub.fullDomain}` : `✓ ${sub.fullDomain}`,
+        name: isDangerous ? `EXPOSED: ${sub.fullDomain}` : sub.fullDomain,
         status: isDangerous ? 'warn' : 'pass',
         detail: isDangerous
           ? `Potentially sensitive subdomain "${sub.subdomain}" is publicly accessible (HTTP ${sub.statusCode})`
