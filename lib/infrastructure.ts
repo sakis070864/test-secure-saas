@@ -198,83 +198,269 @@ async function checkDNS(domain: string): Promise<InfraResult[]> {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SUBDOMAIN DISCOVERY
+//  SUBDOMAIN DISCOVERY — Real OSINT Data Only (No Guessing)
+//  Sources: crt.sh, HackerTarget, AlienVault OTX
 // ═══════════════════════════════════════════════════════════════
-const COMMON_SUBDOMAINS = [
-  'www', 'mail', 'ftp', 'webmail', 'smtp', 'pop', 'imap',
-  'admin', 'api', 'dev', 'staging', 'test', 'beta', 'demo',
-  'app', 'portal', 'dashboard', 'panel', 'cms', 'blog',
-  'shop', 'store', 'secure', 'vpn', 'remote', 'intranet',
-  'cdn', 'media', 'static', 'assets', 'img', 'images',
-  'docs', 'wiki', 'help', 'support', 'status',
-  'db', 'database', 'mysql', 'mongo', 'redis', 'elastic',
-  'git', 'gitlab', 'jenkins', 'ci', 'deploy',
-  'ns1', 'ns2', 'dns', 'ns',
-  'mx', 'mx1', 'mx2',
-  'backup', 'old', 'legacy', 'archive',
-  'staging2', 'dev2', 'test2', 'uat',
-  'gateway', 'proxy', 'lb', 'loadbalancer',
-  'grafana', 'kibana', 'prometheus', 'monitor',
-  'm', 'mobile', 'wap',
-  'crm', 'erp', 'hr', 'internal',
-  'sso', 'auth', 'login', 'accounts',
-  'sandbox', 'preview', 'canary',
-  'autodiscover', 'autoconfig',
-  'cpanel', 'whm', 'plesk',
-  's3', 'bucket', 'storage',
-];
 
+// ─── Wildcard Baseline Fingerprint ─────────────────────────────
+type WildcardFingerprint = {
+  detected: boolean;
+  statusCode: number;
+  bodySize: number;
+} | null;
+
+async function getWildcardBaseline(domain: string): Promise<WildcardFingerprint> {
+  const fakeSubdomain = `xj7q9z-baseline-${Date.now()}.${domain}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`https://${fakeSubdomain}`, {
+      method: 'GET',
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': UA },
+    });
+    clearTimeout(timeout);
+    const body = await response.text();
+    return { detected: true, statusCode: response.status, bodySize: body.length };
+  } catch {
+    return null;
+  }
+}
+
+function matchesWildcard(statusCode: number, bodySize: number, baseline: WildcardFingerprint): boolean {
+  if (!baseline || !baseline.detected) return false;
+  if (statusCode !== baseline.statusCode) return false;
+  const tolerance = Math.max(baseline.bodySize * 0.1, 50);
+  return Math.abs(bodySize - baseline.bodySize) <= tolerance;
+}
+
+// ─── Subdomain Prober ──────────────────────────────────────────
+async function probeSubdomain(
+  sub: string, domain: string
+): Promise<{ subdomain: string; fullDomain: string; alive: boolean; statusCode: number; bodySize: number } | null> {
+  const fullDomain = `${sub}.${domain}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const response = await fetch(`https://${fullDomain}`, {
+      method: 'GET', signal: controller.signal, redirect: 'follow',
+      headers: { 'User-Agent': UA },
+    });
+    clearTimeout(timeout);
+    const body = await response.text();
+    return { subdomain: sub, fullDomain, alive: true, statusCode: response.status, bodySize: body.length };
+  } catch {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const response = await fetch(`http://${fullDomain}`, {
+        method: 'GET', signal: controller.signal, redirect: 'follow',
+        headers: { 'User-Agent': UA },
+      });
+      clearTimeout(timeout);
+      const body = await response.text();
+      return { subdomain: sub, fullDomain, alive: true, statusCode: response.status, bodySize: body.length };
+    } catch {
+      return null;
+    }
+  }
+}
+
+// ─── OSINT Source 1: Certificate Transparency (crt.sh) ─────────
+// Public CT logs — every SSL certificate ever issued is recorded here.
+// Free, no API key required.
+async function osintCrtSh(domain: string): Promise<string[]> {
+  const subdomains = new Set<string>();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    const response = await fetch(
+      `https://crt.sh/?q=%25.${encodeURIComponent(domain)}&output=json`,
+      { signal: controller.signal, headers: { 'User-Agent': UA } }
+    );
+    clearTimeout(timeout);
+    if (!response.ok) return [];
+
+    const data = await response.json() as { common_name?: string; name_value?: string }[];
+    for (const entry of data) {
+      const names = [entry.common_name, ...(entry.name_value?.split('\n') || [])];
+      for (const name of names) {
+        if (!name) continue;
+        const clean = name.trim().toLowerCase().replace(/^\*\./, '');
+        if (clean.endsWith(`.${domain}`) && clean !== domain) {
+          const sub = clean.replace(`.${domain}`, '');
+          if (sub && !sub.includes('*') && !sub.includes(' ')) {
+            subdomains.add(sub);
+          }
+        }
+      }
+    }
+  } catch { /* crt.sh unavailable */ }
+  return Array.from(subdomains);
+}
+
+// ─── OSINT Source 2: HackerTarget ──────────────────────────────
+// DNS host search — aggregated DNS records from multiple sources.
+// Free, no API key, limit 100 queries/day.
+async function osintHackerTarget(domain: string): Promise<string[]> {
+  const subdomains = new Set<string>();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(
+      `https://api.hackertarget.com/hostsearch/?q=${encodeURIComponent(domain)}`,
+      { signal: controller.signal, headers: { 'User-Agent': UA } }
+    );
+    clearTimeout(timeout);
+    if (!response.ok) return [];
+
+    const text = await response.text();
+    if (text.startsWith('error') || text.includes('API count exceeded')) return [];
+
+    // Format: "subdomain.domain.com,IP" per line
+    for (const line of text.split('\n')) {
+      const host = line.split(',')[0]?.trim().toLowerCase();
+      if (!host) continue;
+      if (host.endsWith(`.${domain}`) && host !== domain) {
+        const sub = host.replace(`.${domain}`, '');
+        if (sub && !sub.includes(' ')) {
+          subdomains.add(sub);
+        }
+      }
+    }
+  } catch { /* HackerTarget unavailable */ }
+  return Array.from(subdomains);
+}
+
+// ─── OSINT Source 3: AlienVault OTX ────────────────────────────
+// Passive DNS data from threat intelligence feeds.
+// Free, no API key required for basic queries.
+async function osintAlienVault(domain: string): Promise<string[]> {
+  const subdomains = new Set<string>();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(
+      `https://otx.alienvault.com/api/v1/indicators/domain/${encodeURIComponent(domain)}/passive_dns`,
+      { signal: controller.signal, headers: { 'User-Agent': UA } }
+    );
+    clearTimeout(timeout);
+    if (!response.ok) return [];
+
+    const data = await response.json() as { passive_dns?: { hostname?: string }[] };
+    for (const record of data.passive_dns || []) {
+      const host = record.hostname?.trim().toLowerCase();
+      if (!host) continue;
+      if (host.endsWith(`.${domain}`) && host !== domain) {
+        const sub = host.replace(`.${domain}`, '');
+        if (sub && !sub.includes('*') && !sub.includes(' ')) {
+          subdomains.add(sub);
+        }
+      }
+    }
+  } catch { /* AlienVault unavailable */ }
+  return Array.from(subdomains);
+}
+
+// ─── Main Discovery: Query all OSINT sources in parallel ───────
 async function discoverSubdomains(domain: string): Promise<{ subdomains: SubdomainResult[]; checks: InfraResult[] }> {
   const subdomains: SubdomainResult[] = [];
   const checks: InfraResult[] = [];
 
-  // Use DNS to check if subdomain resolves
-  const batches: string[][] = [];
-  for (let i = 0; i < COMMON_SUBDOMAINS.length; i += 10) {
-    batches.push(COMMON_SUBDOMAINS.slice(i, i + 10));
+  // ── Step 1: Wildcard DNS Baseline ──
+  const wildcardBaseline = await getWildcardBaseline(domain);
+  if (wildcardBaseline?.detected) {
+    checks.push({
+      name: 'Wildcard DNS Detected',
+      status: 'info',
+      detail: `Domain uses wildcard DNS (*.${domain} resolves). Baseline: ${wildcardBaseline.statusCode} / ${wildcardBaseline.bodySize} bytes. Filtering false positives.`,
+      risk: 'None', category: 'subdomain',
+    });
   }
+
+  // ── Step 2: Query all OSINT sources in parallel ──
+  const [ctResults, htResults, avResults] = await Promise.all([
+    osintCrtSh(domain),
+    osintHackerTarget(domain),
+    osintAlienVault(domain),
+  ]);
+
+  const sourceSummary: string[] = [];
+  if (ctResults.length > 0) sourceSummary.push(`crt.sh: ${ctResults.length}`);
+  if (htResults.length > 0) sourceSummary.push(`HackerTarget: ${htResults.length}`);
+  if (avResults.length > 0) sourceSummary.push(`AlienVault: ${avResults.length}`);
+
+  // ── Step 3: Merge & deduplicate ──
+  const allDiscovered = new Set<string>([...ctResults, ...htResults, ...avResults]);
+
+  if (sourceSummary.length > 0) {
+    checks.push({
+      name: 'OSINT Subdomain Intelligence',
+      status: 'info',
+      detail: `Queried 3 sources — ${allDiscovered.size} unique subdomain(s) discovered (${sourceSummary.join(', ')})`,
+      risk: 'None', category: 'subdomain',
+    });
+  } else {
+    checks.push({
+      name: 'OSINT Subdomain Intelligence',
+      status: 'info',
+      detail: 'All 3 OSINT sources returned 0 results or were unavailable (crt.sh, HackerTarget, AlienVault)',
+      risk: 'None', category: 'subdomain',
+    });
+  }
+
+  if (allDiscovered.size === 0) {
+    checks.push({
+      name: 'Subdomain Discovery',
+      status: 'pass',
+      detail: 'No subdomains found in public intelligence sources',
+      risk: 'None', category: 'subdomain',
+    });
+    return { subdomains, checks };
+  }
+
+  // ── Step 4: Probe discovered subdomains in batches ──
+  const allSubsArray = Array.from(allDiscovered);
+  const batches: string[][] = [];
+  for (let i = 0; i < allSubsArray.length; i += 10) {
+    batches.push(allSubsArray.slice(i, i + 10));
+  }
+
+  let wildcardFiltered = 0;
 
   for (const batch of batches) {
     const promises = batch.map(async (sub) => {
-      const fullDomain = `${sub}.${domain}`;
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
-        const response = await fetch(`https://${fullDomain}`, {
-          method: 'HEAD',
-          signal: controller.signal,
-          redirect: 'follow',
-          headers: { 'User-Agent': UA },
-        });
-        clearTimeout(timeout);
-        subdomains.push({ subdomain: sub, fullDomain, alive: true, statusCode: response.status });
-      } catch {
-        // Try HTTP as fallback
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 3000);
-          const response = await fetch(`http://${fullDomain}`, {
-            method: 'HEAD',
-            signal: controller.signal,
-            redirect: 'follow',
-            headers: { 'User-Agent': UA },
-          });
-          clearTimeout(timeout);
-          subdomains.push({ subdomain: sub, fullDomain, alive: true, statusCode: response.status });
-        } catch {
-          // Not alive — don't add
-        }
+      const result = await probeSubdomain(sub, domain);
+      if (!result) return;
+
+      // ── Step 5: Filter wildcard catch-alls ──
+      if (matchesWildcard(result.statusCode, result.bodySize, wildcardBaseline)) {
+        wildcardFiltered++;
+        return;
       }
+
+      subdomains.push({
+        subdomain: result.subdomain,
+        fullDomain: result.fullDomain,
+        alive: true,
+        statusCode: result.statusCode,
+      });
     });
     await Promise.all(promises);
   }
 
+  // ── Step 6: Report results ──
   const alive = subdomains.filter(s => s.alive);
+
   if (alive.length > 0) {
+    const filteredNote = wildcardFiltered > 0
+      ? ` (${wildcardFiltered} wildcard false positives filtered)`
+      : '';
     checks.push({
       name: 'Subdomain Discovery',
       status: 'info',
-      detail: `Found ${alive.length} live subdomains out of ${COMMON_SUBDOMAINS.length} tested`,
+      detail: `Found ${alive.length} verified subdomain(s) from ${allDiscovered.size} discovered${filteredNote}`,
       risk: 'None', category: 'subdomain',
     });
 
@@ -291,10 +477,13 @@ async function discoverSubdomains(domain: string): Promise<{ subdomains: Subdoma
       }
     }
   } else {
+    const filteredNote = wildcardFiltered > 0
+      ? ` (${wildcardFiltered} wildcard catch-all responses filtered)`
+      : '';
     checks.push({
       name: 'Subdomain Discovery',
       status: 'pass',
-      detail: `No additional subdomains found (tested ${COMMON_SUBDOMAINS.length} common names)`,
+      detail: `No live subdomains from ${allDiscovered.size} discovered${filteredNote}`,
       risk: 'None', category: 'subdomain',
     });
   }

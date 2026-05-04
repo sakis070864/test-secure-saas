@@ -189,6 +189,84 @@ async function runBatch<T>(items: T[], concurrency: number, fn: (item: T) => Pro
 // ═══════════════════════════════════════════════════════════════
 //  MAIN SPIDER
 // ═══════════════════════════════════════════════════════════════
+
+// ─── Sitemap & Robots.txt Seed Discovery ────────────────────────
+async function fetchSitemapUrls(domain: string): Promise<string[]> {
+  const urls: string[] = [];
+
+  // 1. Try robots.txt for Sitemap: directives
+  const sitemapLocations = [`https://${domain}/sitemap.xml`];
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`https://${domain}/robots.txt`, {
+      signal: controller.signal,
+      headers: { 'User-Agent': UA },
+    });
+    clearTimeout(timeout);
+    if (response.ok) {
+      const text = await response.text();
+      const sitemapLines = text.match(/^Sitemap:\s*(.+)$/gmi);
+      if (sitemapLines) {
+        for (const line of sitemapLines) {
+          const sitemapUrl = line.replace(/^Sitemap:\s*/i, '').trim();
+          if (sitemapUrl && !sitemapLocations.includes(sitemapUrl)) {
+            sitemapLocations.push(sitemapUrl);
+          }
+        }
+      }
+    }
+  } catch {
+    // robots.txt not available — continue with default sitemap path
+  }
+
+  // 2. Fetch and parse each sitemap
+  for (const sitemapUrl of sitemapLocations) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(sitemapUrl, {
+        signal: controller.signal,
+        headers: { 'User-Agent': UA },
+      });
+      clearTimeout(timeout);
+      if (!response.ok) continue;
+      const xml = await response.text();
+
+      // Extract <loc> URLs from sitemap XML
+      const locRegex = /<loc>\s*([^<]+)\s*<\/loc>/gi;
+      let match;
+      while ((match = locRegex.exec(xml)) !== null) {
+        const loc = match[1].trim();
+        // Check if it's another sitemap (sitemap index)
+        if (loc.endsWith('.xml') || loc.includes('sitemap')) {
+          // Recursively fetch nested sitemap
+          try {
+            const ctrl2 = new AbortController();
+            const t2 = setTimeout(() => ctrl2.abort(), 5000);
+            const resp2 = await fetch(loc, { signal: ctrl2.signal, headers: { 'User-Agent': UA } });
+            clearTimeout(t2);
+            if (resp2.ok) {
+              const xml2 = await resp2.text();
+              let m2;
+              const locRegex2 = /<loc>\s*([^<]+)\s*<\/loc>/gi;
+              while ((m2 = locRegex2.exec(xml2)) !== null) {
+                urls.push(m2[1].trim());
+              }
+            }
+          } catch { /* skip nested sitemap errors */ }
+        } else {
+          urls.push(loc);
+        }
+      }
+    } catch {
+      // Sitemap not available — skip
+    }
+  }
+
+  return urls;
+}
+
 export async function spiderSite(targetUrl: string): Promise<SpiderResult> {
   const startTime = Date.now();
 
@@ -201,9 +279,20 @@ export async function spiderSite(targetUrl: string): Promise<SpiderResult> {
   const allForms: DiscoveredForm[] = [];
   const allParams: { url: string; params: string[] }[] = [];
 
+  // ── Seed from sitemap.xml + robots.txt ──
+  const sitemapUrls = await fetchSitemapUrls(domain);
+
   // BFS queue: [url, depth]
   const queue: [string, number][] = [[targetUrl, 0]];
   visited.add(targetUrl);
+
+  // Add sitemap URLs to queue (if they're on the same domain)
+  for (const sitemapUrl of sitemapUrls) {
+    if (isSameDomain(sitemapUrl, domain) && !visited.has(sitemapUrl)) {
+      visited.add(sitemapUrl);
+      queue.push([sitemapUrl, 0]);
+    }
+  }
 
   while (queue.length > 0 && pages.length < MAX_PAGES) {
     // Take a batch from the queue
