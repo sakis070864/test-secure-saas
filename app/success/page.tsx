@@ -149,7 +149,29 @@ function SuccessContent() {
       addSec('Open Redirect Tests', result.attacks.openRedirects);
       addSec('Path Traversal Tests', result.attacks.pathTraversal);
       addSec('IDOR Tests', result.attacks.idor);
-      addSec('Per-Page Headers', result.attacks.perPageHeaders);
+      // Per-Page Headers — compressed summary instead of listing every header for every page
+      if (result.attacks.perPageHeaders.length > 0) {
+        const headerMap = new Map<string, { pass: number; fail: number; detail: string }>();
+        for (const h of result.attacks.perPageHeaders) {
+          const existing = headerMap.get(h.name) || { pass: 0, fail: 0, detail: h.detail };
+          if (h.status === 'pass') existing.pass++;
+          else existing.fail++;
+          if (!existing.detail && h.detail) existing.detail = h.detail;
+          headerMap.set(h.name, existing);
+        }
+        const totalPages = Math.max(1, Math.round(result.attacks.perPageHeaders.length / headerMap.size));
+        const compressed = Array.from(headerMap.entries()).map(([name, data]) => ({
+          name,
+          status: data.fail > 0 ? (data.pass > 0 ? 'warn' : 'fail') : 'pass',
+          detail: data.fail > 0
+            ? `Missing on ${data.fail}/${totalPages} pages — ${data.detail.replace('Missing — ', '')}`
+            : `Present on all ${totalPages} pages — ${data.detail.replace('Present: ', '').substring(0, 60)}`,
+          risk: data.fail > 0 ? 'Medium' : 'None',
+          category: 'header',
+          pageUrl: '',
+        }));
+        addSec(`Per-Page Headers (${totalPages} pages scanned)`, compressed as any);
+      }
       addSec('SSL/TLS', result.infra.ssl);
       addSec('DNS Security', result.infra.dns);
       addSec('Subdomain Discovery', result.infra.subdomainChecks);
