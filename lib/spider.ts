@@ -8,6 +8,7 @@ const MAX_PAGES = 50;
 const MAX_DEPTH = 5;
 const CONCURRENCY = 5;
 const PAGE_TIMEOUT = 8000;
+const SPIDER_TIMEOUT = 45000; // 45s wall-clock — must finish before Vercel's 60s limit
 
 // ─── Types ──────────────────────────────────────────────────────
 export type DiscoveredForm = {
@@ -294,12 +295,12 @@ export async function spiderSite(targetUrl: string): Promise<SpiderResult> {
     }
   }
 
-  while (queue.length > 0 && pages.length < MAX_PAGES) {
+  while (queue.length > 0 && pages.length < MAX_PAGES && (Date.now() - startTime) < SPIDER_TIMEOUT) {
     // Take a batch from the queue
     const batch = queue.splice(0, Math.min(CONCURRENCY, MAX_PAGES - pages.length));
 
     await runBatch(batch, CONCURRENCY, async ([url, depth]) => {
-      if (pages.length >= MAX_PAGES) return;
+      if (pages.length >= MAX_PAGES || (Date.now() - startTime) >= SPIDER_TIMEOUT) return;
 
       try {
         const controller = new AbortController();

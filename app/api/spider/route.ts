@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import { spiderSite } from '@/lib/spider';
 import { verifyAdminToken } from '@/app/api/admin-auth/route';
 
+export const maxDuration = 60;
+
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: Request) {
