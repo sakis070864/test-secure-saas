@@ -12,6 +12,7 @@ function LandingContent() {
   const [stdEmail, setStdEmail] = useState('');
   const [deepUrl, setDeepUrl] = useState('');
   const [deepEmail, setDeepEmail] = useState('');
+  const [deepSubdomains, setDeepSubdomains] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
@@ -70,7 +71,7 @@ function LandingContent() {
       const r = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, email, tier }),
+        body: JSON.stringify({ url, email, tier, subdomains: tier === 'deep' ? deepSubdomains : undefined }),
       });
       const data = await r.json();
       if (data.error) { setError(data.error); setLoading(null); return; }
@@ -249,7 +250,7 @@ function LandingContent() {
                 <ul className="space-y-2 text-sm text-slate-400">
                   <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="font-semibold">SSL/TLS</span> — HTTPS, HSTS, preload, redirect chain</li>
                   <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="font-semibold">DNS Security</span> — SPF, DKIM, DMARC, MX, CAA records</li>
-                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="font-semibold">90+ subdomains</span> scanned (dev, staging, admin, db...)</li>
+                  <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="font-semibold">Subdomain discovery</span> — OSINT + user-provided subdomains</li>
                   <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> <span className="font-semibold">19 ports</span> scanned (SSH, MySQL, RDP, MongoDB, Redis...)</li>
                   <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> Flags <span className="font-semibold">dangerous exposed services</span></li>
                   <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">▸</span> Delivers a <span className="font-semibold">20+ page professional PDF report</span></li>
@@ -360,6 +361,8 @@ function LandingContent() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50 transition-all" />
                   <input type="email" value={deepEmail} onChange={e => setDeepEmail(e.target.value)} placeholder="you@company.com" required
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50 transition-all" />
+                  <textarea value={deepSubdomains} onChange={e => setDeepSubdomains(e.target.value)} placeholder="Known subdomains (optional) — e.g. scan, app, api" rows={2}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-red-500/50 transition-all resize-none" />
                   <button type="submit" disabled={loading === 'deep'}
                     className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50">
                     {loading === 'deep' ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</> : <><ShieldAlert className="w-4 h-4" /> Deep Scan — $99</>}
@@ -401,7 +404,7 @@ function LandingContent() {
                     ['Spider crawl', '—', '—', '✓ 50 pages'],
                     ['SQLi / XSS attacks', '—', '—', '✓'],
                     ['SSL / DNS / Ports', '—', '—', '✓'],
-                    ['Subdomain discovery', '—', '—', '✓ 90+'],
+                    ['Subdomain discovery', '—', '—', '✓ OSINT'],
                     ['PDF report', '—', '✓', '✓ 20+ pages'],
                     ['Email required', '—', 'Any email', 'Any email'],
                     ['Price', 'Free', '$20', '$99'],

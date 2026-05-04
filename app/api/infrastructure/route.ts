@@ -7,7 +7,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: Request) {
   try {
-    const { url, sessionId } = await request.json();
+    const { url, sessionId, subdomains } = await request.json();
 
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
 
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
     }
 
     // Run infrastructure scan (SSL, DNS, subdomains, ports)
-    const results = await scanInfrastructure(url);
+    const userSubdomains = subdomains ? subdomains.split(/[,\s\n]+/).map((s: string) => s.trim().toLowerCase()).filter(Boolean) : [];
+    const results = await scanInfrastructure(url, userSubdomains);
 
     return NextResponse.json(results);
 

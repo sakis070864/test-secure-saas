@@ -77,6 +77,7 @@ function SuccessContent() {
   const url = sp.get('url') || '';
   const email = sp.get('email') || '';
   const tier = (sp.get('tier') || 'deep') as ScanTier;
+  const subdomains = sp.get('subdomains') || '';
   const [result, setResult] = useState<FullScanResult | null>(null);
   const [progress, setProgress] = useState<ScanProgress>({ phase: 'idle', message: 'Initializing...', pagesFound: 0, formsFound: 0, paramsFound: 0, pagesAttacked: 0, totalPages: 0, percent: 0 });
   const [error, setError] = useState('');
@@ -86,10 +87,10 @@ function SuccessContent() {
   useEffect(() => {
     if (!sessionId || !url || !email || started.current) return;
     started.current = true;
-    runFullScan(url, email, sessionId, setProgress, tier)
+    runFullScan(url, email, sessionId, setProgress, tier, subdomains)
       .then(r => setResult(r))
       .catch(e => setError(e.message || 'Scan failed'));
-  }, [sessionId, url, email, tier]);
+  }, [sessionId, url, email, tier, subdomains]);
 
   const handlePDF = async () => {
     if (!result) return;

@@ -30,7 +30,8 @@ export type FullScanResult = {
 export async function runFullScan(
   url: string, email: string, sessionId: string,
   onProgress: (p: ScanProgress) => void,
-  tier: ScanTier = 'deep'
+  tier: ScanTier = 'deep',
+  subdomains: string = ''
 ): Promise<FullScanResult> {
   const progress: ScanProgress = { phase: 'idle', message: '', pagesFound: 0, formsFound: 0, paramsFound: 0, pagesAttacked: 0, totalPages: 0, percent: 0 };
   const update = (p: Partial<ScanProgress>) => { Object.assign(progress, p); onProgress({ ...progress }); };
@@ -96,7 +97,7 @@ export async function runFullScan(
   update({ phase: 'infra', message: 'Scanning SSL, DNS, subdomains, ports...', percent: 75 });
   let infraData = { ssl: [], dns: [], subdomains: [], subdomainChecks: [], ports: [] };
   try {
-    const infraRes = await fetch('/api/infrastructure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId }) });
+    const infraRes = await fetch('/api/infrastructure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId, subdomains }) });
     const d = await infraRes.json();
     if (!d.error) infraData = d;
   } catch { /* continue */ }

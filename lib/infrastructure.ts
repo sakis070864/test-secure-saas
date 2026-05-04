@@ -453,7 +453,7 @@ async function osintAlienVault(domain: string): Promise<string[]> {
 }
 
 // ─── Main Discovery ────────────────────────────────────────────
-async function discoverSubdomains(domain: string): Promise<{ subdomains: SubdomainResult[]; checks: InfraResult[] }> {
+async function discoverSubdomains(domain: string, userSubdomains: string[] = []): Promise<{ subdomains: SubdomainResult[]; checks: InfraResult[] }> {
   const subdomains: SubdomainResult[] = [];
   const checks: InfraResult[] = [];
 
@@ -493,8 +493,17 @@ async function discoverSubdomains(domain: string): Promise<{ subdomains: Subdoma
   if (htResults.length > 0) sourceSummary.push(`HackerTarget: ${htResults.length}`);
   if (avResults.length > 0) sourceSummary.push(`AlienVault: ${avResults.length}`);
 
-  // ── Step 4: Merge & deduplicate ──
-  const allDiscovered = new Set<string>([...csResults, ...ctResults, ...htResults, ...avResults]);
+  // ── Step 4: Merge & deduplicate (OSINT + user-provided) ──
+  const allDiscovered = new Set<string>([...csResults, ...ctResults, ...htResults, ...avResults, ...userSubdomains]);
+
+  if (userSubdomains.length > 0) {
+    checks.push({
+      name: 'User-Provided Subdomains',
+      status: 'info',
+      detail: `${userSubdomains.length} subdomain(s) provided by the user: ${userSubdomains.join(', ')}`,
+      risk: 'None', category: 'subdomain',
+    });
+  }
 
   if (sourceSummary.length > 0) {
     checks.push({
@@ -687,7 +696,7 @@ async function scanPorts(domain: string): Promise<InfraResult[]> {
 // ═══════════════════════════════════════════════════════════════
 //  MAIN INFRASTRUCTURE SCAN
 // ═══════════════════════════════════════════════════════════════
-export async function scanInfrastructure(targetUrl: string): Promise<InfrastructureScanResult> {
+export async function scanInfrastructure(targetUrl: string, userSubdomains: string[] = []): Promise<InfrastructureScanResult> {
   if (!targetUrl.startsWith('http')) targetUrl = `https://${targetUrl}`;
   const domain = new URL(targetUrl).hostname;
 
@@ -695,7 +704,7 @@ export async function scanInfrastructure(targetUrl: string): Promise<Infrastruct
   const [ssl, dns, { subdomains, checks: subdomainChecks }, ports] = await Promise.all([
     checkSSL(domain),
     checkDNS(domain),
-    discoverSubdomains(domain),
+    discoverSubdomains(domain, userSubdomains),
     scanPorts(domain),
   ]);
 

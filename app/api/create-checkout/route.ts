@@ -18,7 +18,7 @@ const TIER_CONFIG = {
 
 export async function POST(request: Request) {
   try {
-    const { url, email, tier = 'deep' } = await request.json();
+    const { url, email, tier = 'deep', subdomains = '' } = await request.json();
 
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
@@ -43,12 +43,13 @@ export async function POST(request: Request) {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}&url=${encodeURIComponent(url)}&email=${encodeURIComponent(email)}&tier=${tier}`,
+      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}&url=${encodeURIComponent(url)}&email=${encodeURIComponent(email)}&tier=${tier}${subdomains ? `&subdomains=${encodeURIComponent(subdomains)}` : ''}`,
       cancel_url: `${origin}/?cancelled=true`,
       metadata: {
         scan_url: url,
         client_email: email,
         tier: tier,
+        subdomains: subdomains || '',
       },
     });
 
