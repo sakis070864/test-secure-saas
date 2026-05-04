@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
-const MAX_PAGES = 50;
+const MAX_PAGES = 100;
 const MAX_DEPTH = 5;
 const CONCURRENCY = 5;
 const PAGE_TIMEOUT = 8000;
@@ -221,8 +221,12 @@ async function fetchSitemapUrls(domain: string): Promise<string[]> {
     // robots.txt not available — continue with default sitemap path
   }
 
-  // 2. Fetch and parse each sitemap
+  // 2. Fetch and parse each sitemap (cap: 3 nested sitemaps, 200 URLs max)
+  const MAX_SITEMAP_URLS = 200;
+  let nestedFetched = 0;
+  const MAX_NESTED = 3;
   for (const sitemapUrl of sitemapLocations) {
+    if (urls.length >= MAX_SITEMAP_URLS) break;
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
@@ -237,26 +241,26 @@ async function fetchSitemapUrls(domain: string): Promise<string[]> {
       // Extract <loc> URLs from sitemap XML
       const locRegex = /<loc>\s*([^<]+)\s*<\/loc>/gi;
       let match;
-      while ((match = locRegex.exec(xml)) !== null) {
+      while ((match = locRegex.exec(xml)) !== null && urls.length < MAX_SITEMAP_URLS) {
         const loc = match[1].trim();
         // Check if it's another sitemap (sitemap index)
-        if (loc.endsWith('.xml') || loc.includes('sitemap')) {
-          // Recursively fetch nested sitemap
+        if ((loc.endsWith('.xml') || loc.includes('sitemap')) && nestedFetched < MAX_NESTED) {
+          nestedFetched++;
           try {
             const ctrl2 = new AbortController();
-            const t2 = setTimeout(() => ctrl2.abort(), 5000);
+            const t2 = setTimeout(() => ctrl2.abort(), 3000);
             const resp2 = await fetch(loc, { signal: ctrl2.signal, headers: { 'User-Agent': UA } });
             clearTimeout(t2);
             if (resp2.ok) {
               const xml2 = await resp2.text();
               let m2;
               const locRegex2 = /<loc>\s*([^<]+)\s*<\/loc>/gi;
-              while ((m2 = locRegex2.exec(xml2)) !== null) {
+              while ((m2 = locRegex2.exec(xml2)) !== null && urls.length < MAX_SITEMAP_URLS) {
                 urls.push(m2[1].trim());
               }
             }
           } catch { /* skip nested sitemap errors */ }
-        } else {
+        } else if (!loc.endsWith('.xml') && !loc.includes('sitemap')) {
           urls.push(loc);
         }
       }
