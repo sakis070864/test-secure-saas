@@ -133,6 +133,15 @@ function checkCORS(response: Response): FreeCheckResult[] {
 
 async function checkCriticalFiles(origin: string, isSoft404: boolean): Promise<FreeCheckResult[]> {
   const results: FreeCheckResult[] = [];
+
+  // Control test: detect blanket 403 rules
+  const probeRes = await quickFetch(`${origin}/.abcsecure-probe-${Date.now()}`, 'HEAD', 4000);
+  const blanket403 = probeRes?.status === 403;
+
+  if (blanket403) {
+    results.push({ name: 'Dot-file Protection', status: 'info', detail: 'Server has blanket dot-file deny rule. Individual file existence cannot be confirmed.', risk: 'None' });
+  }
+
   const checks = CRITICAL_FILES.map(async f => {
     const r = await quickFetch(`${origin}${f.path}`, 'HEAD', 4000);
     const s = r?.status || 0;
@@ -143,7 +152,11 @@ async function checkCriticalFiles(origin: string, isSoft404: boolean): Promise<F
         results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE — ${f.desc}`, risk: f.risk });
       }
     } else if (s === 403) {
-      results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
+      if (blanket403 && f.path.startsWith('/.')) {
+        results.push({ name: f.path, status: 'pass', detail: 'Blocked by server blanket rule (not confirmed to exist)', risk: 'None' });
+      } else {
+        results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
+      }
     } else {
       results.push({ name: f.path, status: 'pass', detail: 'Not found (secure)', risk: 'None' });
     }

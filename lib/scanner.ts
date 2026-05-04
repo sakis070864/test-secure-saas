@@ -65,6 +65,15 @@ function checkHeaders(response: Response, wafBlocked = false): CheckResult[] {
 
 async function checkExposedFiles(origin: string, isSoft404: boolean): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
+
+  // Control test: detect blanket 403 rules (server blocks ALL dot-files, even fake ones)
+  const probeRes = await quickFetch(`${origin}/.abcsecure-probe-${Date.now()}`, 'HEAD', 4000);
+  const blanket403 = probeRes?.status === 403;
+
+  if (blanket403) {
+    results.push({ name: 'Dot-file Protection', status: 'info', detail: 'Server has blanket dot-file deny rule (all dot-paths return 403). Individual file existence cannot be confirmed.', risk: 'None' });
+  }
+
   const batches: typeof SENSITIVE_PATHS[] = [];
   for (let i = 0; i < SENSITIVE_PATHS.length; i += 15) batches.push(SENSITIVE_PATHS.slice(i, i + 15));
 
@@ -79,7 +88,12 @@ async function checkExposedFiles(origin: string, isSoft404: boolean): Promise<Ch
           results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE (${s}) — ${f.desc}`, risk: f.risk });
         }
       } else if (s === 403) {
-        results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
+        if (blanket403 && f.path.startsWith('/.')) {
+          // Blanket rule — can't confirm file exists, skip warn
+          results.push({ name: f.path, status: 'pass', detail: 'Blocked by server blanket rule (not confirmed to exist)', risk: 'None' });
+        } else {
+          results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
+        }
       } else {
         results.push({ name: f.path, status: 'pass', detail: 'Not found (secure)', risk: 'None' });
       }
