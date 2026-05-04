@@ -43,6 +43,10 @@ export async function runFullScan(
   const phaseLabel = tier === 'standard' ? 'Running standard security audit...' : 'Running homepage security audit...';
   update({ phase: 'homepage', message: phaseLabel, percent: 5 });
   const scanRes = await fetch(scanEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, email, sessionId }) });
+  if (!scanRes.ok) {
+    const errText = await scanRes.text().catch(() => 'Unknown error');
+    throw new Error(`Scan failed (HTTP ${scanRes.status}): ${errText.substring(0, 100)}`);
+  }
   const scanData = await scanRes.json();
   if (scanData.error) throw new Error(scanData.error);
 
@@ -64,9 +68,26 @@ export async function runFullScan(
 
   // Phase 2: Spider
   update({ phase: 'spider', message: 'Spider crawling entire site...', percent: 20 });
-  const spiderRes = await fetch('/api/spider', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId }) });
-  const spiderData = await spiderRes.json();
-  if (spiderData.error) throw new Error(spiderData.error);
+  let spiderData = { totalPages: 1, totalForms: 0, totalParameters: 0, crawlDepth: 0, crawlTimeMs: 0, sitemap: [] as any[] };
+  try {
+    const spiderRes = await fetch('/api/spider', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId }) });
+    if (!spiderRes.ok) {
+      const errText = await spiderRes.text().catch(() => '');
+      console.warn(`Spider returned ${spiderRes.status}: ${errText.substring(0, 200)}`);
+      update({ percent: 40, message: `Spider skipped (HTTP ${spiderRes.status}) — continuing with homepage only` });
+    } else {
+      const sd = await spiderRes.json();
+      if (sd.error) {
+        console.warn('Spider error:', sd.error);
+        update({ percent: 40, message: `Spider error — continuing with homepage only` });
+      } else {
+        spiderData = sd;
+      }
+    }
+  } catch (spiderErr: any) {
+    console.warn('Spider failed:', spiderErr.message);
+    update({ percent: 40, message: `Spider timeout — continuing with homepage only` });
+  }
   update({ pagesFound: spiderData.totalPages, formsFound: spiderData.totalForms, paramsFound: spiderData.totalParameters, totalPages: spiderData.totalPages, percent: 40, message: `Found ${spiderData.totalPages} pages, ${spiderData.totalForms} forms` });
 
   // Phase 3: Attack in batches of 5
@@ -80,14 +101,16 @@ export async function runFullScan(
     update({ pagesAttacked: i, message: `Attacking page ${i + 1}/${sitemap.length}...`, percent: 45 + Math.round((i / Math.max(sitemap.length, 1)) * 25) });
     try {
       const atkRes = await fetch('/api/attack', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, pages: batch }) });
-      const atkData = await atkRes.json();
-      if (!atkData.error) {
-        allAttacks.sqli.push(...(atkData.sqli || []));
-        allAttacks.xss.push(...(atkData.xss || []));
-        allAttacks.openRedirects.push(...(atkData.openRedirects || []));
-        allAttacks.pathTraversal.push(...(atkData.pathTraversal || []));
-        allAttacks.idor.push(...(atkData.idor || []));
-        allAttacks.perPageHeaders.push(...(atkData.perPageHeaders || []));
+      if (atkRes.ok) {
+        const atkData = await atkRes.json();
+        if (!atkData.error) {
+          allAttacks.sqli.push(...(atkData.sqli || []));
+          allAttacks.xss.push(...(atkData.xss || []));
+          allAttacks.openRedirects.push(...(atkData.openRedirects || []));
+          allAttacks.pathTraversal.push(...(atkData.pathTraversal || []));
+          allAttacks.idor.push(...(atkData.idor || []));
+          allAttacks.perPageHeaders.push(...(atkData.perPageHeaders || []));
+        }
       }
     } catch { /* continue */ }
   }
@@ -98,8 +121,12 @@ export async function runFullScan(
   let infraData = { ssl: [], dns: [], subdomains: [], subdomainChecks: [], ports: [] };
   try {
     const infraRes = await fetch('/api/infrastructure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId, subdomains }) });
-    const d = await infraRes.json();
-    if (!d.error) infraData = d;
+    if (infraRes.ok) {
+      const d = await infraRes.json();
+      if (!d.error) infraData = d;
+    } else {
+      console.warn(`Infrastructure returned ${infraRes.status}`);
+    }
   } catch { /* continue */ }
   update({ percent: 95, message: 'Infrastructure scan complete' });
 
