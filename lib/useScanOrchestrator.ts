@@ -93,7 +93,13 @@ export async function runFullScan(
   // Phase 3: Attack in batches of 5
   update({ phase: 'attack', message: 'Testing vulnerabilities...', percent: 45 });
   const allAttacks = { sqli: [] as any[], xss: [] as any[], openRedirects: [] as any[], pathTraversal: [] as any[], idor: [] as any[], perPageHeaders: [] as any[] };
-  const sitemap = spiderData.sitemap || [];
+  let sitemap = spiderData.sitemap || [];
+
+  // Fallback: if spider returned no pages, add homepage as minimum
+  if (sitemap.length === 0) {
+    sitemap = [{ url, forms: [], parameters: [], responseHeaders: {} }];
+    update({ pagesFound: 1, totalPages: 1, message: 'Spider returned no pages — testing homepage only' });
+  }
   const batchSize = 5;
 
   for (let i = 0; i < sitemap.length; i += batchSize) {
