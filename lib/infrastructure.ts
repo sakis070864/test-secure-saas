@@ -199,10 +199,11 @@ async function checkDNS(domain: string): Promise<InfraResult[]> {
 
 // ═══════════════════════════════════════════════════════════════
 //  SUBDOMAIN DISCOVERY — Real OSINT Data Only (No Guessing)
-//  Sources: crt.sh, HackerTarget, AlienVault OTX
+//  Sources: CertSpotter, crt.sh, HackerTarget, AlienVault OTX
+//  Filtering: DNS-level wildcard IP comparison + HTTP fingerprinting
 // ═══════════════════════════════════════════════════════════════
 
-// ─── Wildcard Baseline Fingerprint ─────────────────────────────
+// ─── Wildcard DNS Fingerprint (HTTP-level) ─────────────────────
 type WildcardFingerprint = {
   detected: boolean;
   statusCode: number;
@@ -215,9 +216,7 @@ async function getWildcardBaseline(domain: string): Promise<WildcardFingerprint>
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     const response = await fetch(`https://${fakeSubdomain}`, {
-      method: 'GET',
-      signal: controller.signal,
-      redirect: 'follow',
+      method: 'GET', signal: controller.signal, redirect: 'follow',
       headers: { 'User-Agent': UA },
     });
     clearTimeout(timeout);
@@ -233,6 +232,69 @@ function matchesWildcard(statusCode: number, bodySize: number, baseline: Wildcar
   if (statusCode !== baseline.statusCode) return false;
   const tolerance = Math.max(baseline.bodySize * 0.1, 50);
   return Math.abs(bodySize - baseline.bodySize) <= tolerance;
+}
+
+// ─── DNS-level Wildcard IP Detection (Google DNS-over-HTTPS) ───
+// Real subdomains point to the SAME IPs as the root domain.
+// Wildcard catch-all phantoms point to DIFFERENT IPs.
+// We use Google's public DNS API to resolve and compare.
+type DnsWildcardBaseline = {
+  detected: boolean;
+  wildcardIPs: Set<string>;
+  rootIPs: Set<string>;
+} | null;
+
+async function getDnsWildcardBaseline(domain: string): Promise<DnsWildcardBaseline> {
+  try {
+    // Resolve root domain
+    const rootRes = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`,
+      { headers: { 'Accept': 'application/dns-json' } }
+    );
+    if (!rootRes.ok) return null;
+    const rootData = await rootRes.json() as { Answer?: { data: string }[] };
+    const rootIPs = new Set<string>((rootData.Answer || []).map(a => a.data));
+
+    // Resolve a guaranteed-fake subdomain
+    const fakeRes = await fetch(
+      `https://dns.google/resolve?name=xj7q9z-baseline-${Date.now()}.${encodeURIComponent(domain)}&type=A`,
+      { headers: { 'Accept': 'application/dns-json' } }
+    );
+    if (!fakeRes.ok) return null;
+    const fakeData = await fakeRes.json() as { Answer?: { data: string }[] };
+    const wildcardIPs = new Set<string>((fakeData.Answer || []).map(a => a.data));
+
+    if (wildcardIPs.size === 0) return null; // No wildcard DNS
+
+    // Check if wildcard IPs differ from root IPs
+    const hasOverlap = [...wildcardIPs].some(ip => rootIPs.has(ip));
+    return { detected: !hasOverlap, wildcardIPs, rootIPs };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveSubdomainIPs(subdomain: string, domain: string): Promise<Set<string>> {
+  try {
+    const res = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(subdomain)}.${encodeURIComponent(domain)}&type=A`,
+      { headers: { 'Accept': 'application/dns-json' } }
+    );
+    if (!res.ok) return new Set();
+    const data = await res.json() as { Answer?: { data: string }[] };
+    return new Set<string>((data.Answer || []).map(a => a.data));
+  } catch {
+    return new Set();
+  }
+}
+
+function isDnsWildcard(subIPs: Set<string>, baseline: DnsWildcardBaseline): boolean {
+  if (!baseline || !baseline.detected) return false;
+  if (subIPs.size === 0) return false;
+  // If the subdomain IPs match the wildcard IPs (not root IPs), it's a phantom
+  const matchesWildcardIPs = [...subIPs].every(ip => baseline.wildcardIPs.has(ip));
+  const matchesRootIPs = [...subIPs].some(ip => baseline.rootIPs.has(ip));
+  return matchesWildcardIPs && !matchesRootIPs;
 }
 
 // ─── Subdomain Prober ──────────────────────────────────────────
@@ -267,9 +329,39 @@ async function probeSubdomain(
   }
 }
 
-// ─── OSINT Source 1: Certificate Transparency (crt.sh) ─────────
-// Public CT logs — every SSL certificate ever issued is recorded here.
-// Free, no API key required.
+// ─── OSINT Source 1: CertSpotter (most reliable) ───────────────
+// SSLMate's Certificate Transparency search engine.
+// Free, no API key, very reliable uptime.
+async function osintCertSpotter(domain: string): Promise<string[]> {
+  const subdomains = new Set<string>();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(
+      `https://api.certspotter.com/v1/issuances?domain=${encodeURIComponent(domain)}&include_subdomains=true&expand=dns_names`,
+      { signal: controller.signal, headers: { 'User-Agent': UA } }
+    );
+    clearTimeout(timeout);
+    if (!response.ok) return [];
+
+    const data = await response.json() as { dns_names?: string[] }[];
+    for (const entry of data) {
+      for (const name of entry.dns_names || []) {
+        const clean = name.trim().toLowerCase().replace(/^\*\./, '');
+        if (clean.endsWith(`.${domain}`) && clean !== domain) {
+          const sub = clean.replace(`.${domain}`, '');
+          if (sub && !sub.includes('*') && !sub.includes(' ')) {
+            subdomains.add(sub);
+          }
+        }
+      }
+    }
+  } catch { /* CertSpotter unavailable */ }
+  return Array.from(subdomains);
+}
+
+// ─── OSINT Source 2: crt.sh (Certificate Transparency) ─────────
+// Free, no API key. Frequently down but good data when available.
 async function osintCrtSh(domain: string): Promise<string[]> {
   const subdomains = new Set<string>();
   try {
@@ -300,9 +392,8 @@ async function osintCrtSh(domain: string): Promise<string[]> {
   return Array.from(subdomains);
 }
 
-// ─── OSINT Source 2: HackerTarget ──────────────────────────────
-// DNS host search — aggregated DNS records from multiple sources.
-// Free, no API key, limit 100 queries/day.
+// ─── OSINT Source 3: HackerTarget ──────────────────────────────
+// DNS host search from aggregated records. Free, no API key.
 async function osintHackerTarget(domain: string): Promise<string[]> {
   const subdomains = new Set<string>();
   try {
@@ -318,7 +409,6 @@ async function osintHackerTarget(domain: string): Promise<string[]> {
     const text = await response.text();
     if (text.startsWith('error') || text.includes('API count exceeded')) return [];
 
-    // Format: "subdomain.domain.com,IP" per line
     for (const line of text.split('\n')) {
       const host = line.split(',')[0]?.trim().toLowerCase();
       if (!host) continue;
@@ -333,9 +423,8 @@ async function osintHackerTarget(domain: string): Promise<string[]> {
   return Array.from(subdomains);
 }
 
-// ─── OSINT Source 3: AlienVault OTX ────────────────────────────
-// Passive DNS data from threat intelligence feeds.
-// Free, no API key required for basic queries.
+// ─── OSINT Source 4: AlienVault OTX ────────────────────────────
+// Passive DNS from threat intelligence. Free, no API key.
 async function osintAlienVault(domain: string): Promise<string[]> {
   const subdomains = new Set<string>();
   try {
@@ -363,12 +452,12 @@ async function osintAlienVault(domain: string): Promise<string[]> {
   return Array.from(subdomains);
 }
 
-// ─── Main Discovery: Query all OSINT sources in parallel ───────
+// ─── Main Discovery ────────────────────────────────────────────
 async function discoverSubdomains(domain: string): Promise<{ subdomains: SubdomainResult[]; checks: InfraResult[] }> {
   const subdomains: SubdomainResult[] = [];
   const checks: InfraResult[] = [];
 
-  // ── Step 1: Wildcard DNS Baseline ──
+  // ── Step 1: HTTP Wildcard Baseline ──
   const wildcardBaseline = await getWildcardBaseline(domain);
   if (wildcardBaseline?.detected) {
     checks.push({
@@ -379,33 +468,46 @@ async function discoverSubdomains(domain: string): Promise<{ subdomains: Subdoma
     });
   }
 
-  // ── Step 2: Query all OSINT sources in parallel ──
-  const [ctResults, htResults, avResults] = await Promise.all([
+  // ── Step 2: DNS-level Wildcard IP Detection ──
+  const dnsBaseline = await getDnsWildcardBaseline(domain);
+  if (dnsBaseline?.detected) {
+    checks.push({
+      name: 'DNS Wildcard IP Analysis',
+      status: 'info',
+      detail: `Root IPs: ${[...dnsBaseline.rootIPs].join(', ')} | Wildcard IPs: ${[...dnsBaseline.wildcardIPs].join(', ')}. Using IP comparison to filter phantoms.`,
+      risk: 'None', category: 'subdomain',
+    });
+  }
+
+  // ── Step 3: Query all OSINT sources in parallel ──
+  const [csResults, ctResults, htResults, avResults] = await Promise.all([
+    osintCertSpotter(domain),
     osintCrtSh(domain),
     osintHackerTarget(domain),
     osintAlienVault(domain),
   ]);
 
   const sourceSummary: string[] = [];
+  if (csResults.length > 0) sourceSummary.push(`CertSpotter: ${csResults.length}`);
   if (ctResults.length > 0) sourceSummary.push(`crt.sh: ${ctResults.length}`);
   if (htResults.length > 0) sourceSummary.push(`HackerTarget: ${htResults.length}`);
   if (avResults.length > 0) sourceSummary.push(`AlienVault: ${avResults.length}`);
 
-  // ── Step 3: Merge & deduplicate ──
-  const allDiscovered = new Set<string>([...ctResults, ...htResults, ...avResults]);
+  // ── Step 4: Merge & deduplicate ──
+  const allDiscovered = new Set<string>([...csResults, ...ctResults, ...htResults, ...avResults]);
 
   if (sourceSummary.length > 0) {
     checks.push({
       name: 'OSINT Subdomain Intelligence',
       status: 'info',
-      detail: `Queried 3 sources — ${allDiscovered.size} unique subdomain(s) discovered (${sourceSummary.join(', ')})`,
+      detail: `Queried 4 sources — ${allDiscovered.size} unique subdomain(s) discovered (${sourceSummary.join(', ')})`,
       risk: 'None', category: 'subdomain',
     });
   } else {
     checks.push({
       name: 'OSINT Subdomain Intelligence',
       status: 'info',
-      detail: 'All 3 OSINT sources returned 0 results or were unavailable (crt.sh, HackerTarget, AlienVault)',
+      detail: 'All 4 OSINT sources returned 0 results or were unavailable (CertSpotter, crt.sh, HackerTarget, AlienVault)',
       risk: 'None', category: 'subdomain',
     });
   }
@@ -420,7 +522,7 @@ async function discoverSubdomains(domain: string): Promise<{ subdomains: Subdoma
     return { subdomains, checks };
   }
 
-  // ── Step 4: Probe discovered subdomains in batches ──
+  // ── Step 5: Probe discovered subdomains in batches ──
   const allSubsArray = Array.from(allDiscovered);
   const batches: string[][] = [];
   for (let i = 0; i < allSubsArray.length; i += 10) {
@@ -431,10 +533,19 @@ async function discoverSubdomains(domain: string): Promise<{ subdomains: Subdoma
 
   for (const batch of batches) {
     const promises = batch.map(async (sub) => {
+      // DNS-level wildcard check first (cheaper than HTTP)
+      if (dnsBaseline?.detected) {
+        const subIPs = await resolveSubdomainIPs(sub, domain);
+        if (isDnsWildcard(subIPs, dnsBaseline)) {
+          wildcardFiltered++;
+          return;
+        }
+      }
+
       const result = await probeSubdomain(sub, domain);
       if (!result) return;
 
-      // ── Step 5: Filter wildcard catch-alls ──
+      // ── Step 6: HTTP-level wildcard filter as backup ──
       if (matchesWildcard(result.statusCode, result.bodySize, wildcardBaseline)) {
         wildcardFiltered++;
         return;
@@ -450,7 +561,7 @@ async function discoverSubdomains(domain: string): Promise<{ subdomains: Subdoma
     await Promise.all(promises);
   }
 
-  // ── Step 6: Report results ──
+  // ── Step 7: Report results ──
   const alive = subdomains.filter(s => s.alive);
 
   if (alive.length > 0) {
