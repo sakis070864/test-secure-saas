@@ -584,49 +584,62 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
 
   for (const batch of batches) {
     const promises = batch.map(async (sub) => {
-      // DNS-level wildcard check first (cheaper than HTTP)
-      if (dnsBaseline?.detected) {
-        const subIPs = await resolveSubdomainIPs(sub, domain);
-        if (isDnsWildcard(subIPs, dnsBaseline)) {
-          wildcardFiltered++;
-          return;
-        }
-      }
+      // DNS resolve check - verify the subdomain actually exists in DNS
+      const subIPs = await resolveSubdomainIPs(sub, domain);
 
-      const result = await probeSubdomain(sub, domain);
-      if (!result) return;
-
-      // ── Step 6: HTTP-level wildcard filter as backup ──
-      if (matchesWildcard(result.statusCode, result.bodySize, wildcardBaseline)) {
+      // DNS-level wildcard filter: only filter if subdomain has NO unique IPs
+      // (i.e. it resolves to the exact same IPs as a random non-existent subdomain)
+      if (dnsBaseline?.detected && subIPs.size > 0 && isDnsWildcard(subIPs, dnsBaseline)) {
         wildcardFiltered++;
         return;
       }
 
-      subdomains.push({
-        subdomain: result.subdomain,
-        fullDomain: result.fullDomain,
-        alive: true,
-        statusCode: result.statusCode,
-      });
+      // HTTP probe
+      const result = await probeSubdomain(sub, domain);
+      if (result) {
+        // HTTP-level wildcard filter (backup for domains without DNS wildcards)
+        if (matchesWildcard(result.statusCode, result.bodySize, wildcardBaseline)) {
+          wildcardFiltered++;
+          return;
+        }
+        subdomains.push({
+          subdomain: result.subdomain,
+          fullDomain: result.fullDomain,
+          alive: true,
+          statusCode: result.statusCode,
+        });
+      } else {
+        // HTTP probe failed but subdomain was discovered via OSINT — still report it
+        // Check if it at least resolves in DNS
+        if (subIPs.size > 0) {
+          subdomains.push({
+            subdomain: sub,
+            fullDomain: `${sub}.${domain}`,
+            alive: false,
+            statusCode: 0,
+          });
+        }
+      }
     });
     await Promise.all(promises);
   }
 
   // ── Step 7: Report results ──
   const alive = subdomains.filter(s => s.alive);
+  const dead = subdomains.filter(s => !s.alive);
 
-  if (alive.length > 0) {
+  if (subdomains.length > 0) {
     const filteredNote = wildcardFiltered > 0
       ? ` (${wildcardFiltered} wildcard false positives filtered)`
       : '';
     checks.push({
       name: 'Subdomain Discovery',
       status: 'info',
-      detail: `Found ${alive.length} verified subdomain(s) from ${allDiscovered.size} discovered${filteredNote}`,
+      detail: `Found ${subdomains.length} subdomain(s) from ${allDiscovered.size} discovered — ${alive.length} active, ${dead.length} DNS-only${filteredNote}`,
       risk: 'None', category: 'subdomain',
     });
 
-    // List each verified subdomain individually
+    // List each subdomain individually
     const dangerousSubs = ['admin', 'phpmyadmin', 'staging', 'dev', 'test', 'backup', 'db', 'database', 'mysql', 'mongo', 'redis', 'jenkins', 'git', 'gitlab', 'grafana', 'kibana', 'internal', 'cpanel', 'whm', 'plesk'];
     for (const sub of alive) {
       const isDangerous = dangerousSubs.includes(sub.subdomain);
@@ -635,8 +648,21 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
         status: isDangerous ? 'warn' : 'pass',
         detail: isDangerous
           ? `Potentially sensitive subdomain "${sub.subdomain}" is publicly accessible (HTTP ${sub.statusCode})`
-          : `Active subdomain — HTTP ${sub.statusCode}`,
+          : `Active subdomain - HTTP ${sub.statusCode}`,
         risk: isDangerous ? 'Medium' : 'None',
+        category: 'subdomain',
+      });
+    }
+    // Also list DNS-only subdomains (no HTTP response but DNS resolves)
+    for (const sub of dead) {
+      const isDangerous = dangerousSubs.includes(sub.subdomain);
+      checks.push({
+        name: sub.fullDomain,
+        status: isDangerous ? 'warn' : 'info',
+        detail: isDangerous
+          ? `Sensitive subdomain "${sub.subdomain}" resolves in DNS but no HTTP response`
+          : `DNS resolves - no HTTP response (may be internal/restricted)`,
+        risk: isDangerous ? 'Medium' : 'Low',
         category: 'subdomain',
       });
     }
