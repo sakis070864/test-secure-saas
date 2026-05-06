@@ -84,6 +84,9 @@ async function checkExposedFiles(origin: string, isSoft404: boolean): Promise<Ch
       if (s === 200) {
         if (isSoft404 && r?.headers.get('content-type')?.includes('text/html')) {
           results.push({ name: f.path, status: 'pass', detail: 'Not found (SPA/Soft 404 fallback)', risk: 'None' });
+        } else if (f.risk === 'Info') {
+          // Info-level files (robots.txt, sitemap.xml, etc.) are expected to be public
+          results.push({ name: f.path, status: 'info', detail: `Present — ${f.desc}`, risk: 'None' });
         } else {
           results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE (${s}) — ${f.desc}`, risk: f.risk });
         }
@@ -104,6 +107,8 @@ async function checkExposedFiles(origin: string, isSoft404: boolean): Promise<Ch
 }
 
 async function checkAdminPanels(origin: string, isSoft404: boolean): Promise<CheckResult[]> {
+  // Generic login/signin pages are normal for any CMS — only flag true admin panels as FAIL
+  const GENERIC_LOGIN_PATHS = ['/login', '/signin', '/user/login'];
   const results: CheckResult[] = [];
   const checks = ADMIN_PANELS.map(async (p) => {
     const r = await quickFetch(`${origin}${p.path}`, 'HEAD', 4000);
@@ -113,6 +118,9 @@ async function checkAdminPanels(origin: string, isSoft404: boolean): Promise<Che
         results.push({ name: `${p.path} (${p.name})`, status: 'pass', detail: 'Not accessible (SPA/Soft 404 fallback)', risk: 'None' });
       } else if (isSoft404 && (s === 301 || s === 302)) {
         results.push({ name: `${p.path} (${p.name})`, status: 'pass', detail: 'Not accessible (Global Redirect)', risk: 'None' });
+      } else if (GENERIC_LOGIN_PATHS.includes(p.path)) {
+        // Generic login pages are expected on most sites — flag as info, not fail
+        results.push({ name: `${p.path} (${p.name})`, status: 'info', detail: `Login page present (${s}) — standard for most CMS/applications`, risk: 'None' });
       } else {
         results.push({ name: `${p.path} (${p.name})`, status: 'fail', detail: `Accessible (${s}) — admin interface exposed`, risk: 'High' });
       }
