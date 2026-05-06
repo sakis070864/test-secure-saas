@@ -452,48 +452,6 @@ async function osintAlienVault(domain: string): Promise<string[]> {
   return Array.from(subdomains);
 }
 
-// ─── Source 5: DNS Brute-Force Wordlist ─────────────────────────
-// Resolves common subdomain names via Cloudflare DNS-over-HTTPS.
-// Catches subdomains that OSINT sources haven't indexed yet.
-const COMMON_SUBDOMAINS = [
-  'www', 'mail', 'ftp', 'smtp', 'pop', 'imap', 'webmail', 'mx',
-  'app', 'api', 'dev', 'staging', 'stage', 'test', 'beta', 'demo',
-  'scan', 'admin', 'panel', 'dashboard', 'portal', 'login', 'auth',
-  'blog', 'shop', 'store', 'cdn', 'static', 'media', 'assets', 'img',
-  'docs', 'help', 'support', 'status', 'monitor', 'grafana',
-  'git', 'gitlab', 'jenkins', 'ci', 'deploy',
-  'vpn', 'remote', 'ssh', 'ns1', 'ns2', 'dns',
-  'crm', 'erp', 'hr', 'wiki', 'intranet',
-  'sandbox', 'preview', 'uat', 'qa',
-];
-
-async function dnsWordlistBrute(domain: string): Promise<string[]> {
-  const found: string[] = [];
-  // Batch resolve in groups of 10 to avoid overloading
-  const batches: string[][] = [];
-  for (let i = 0; i < COMMON_SUBDOMAINS.length; i += 10) {
-    batches.push(COMMON_SUBDOMAINS.slice(i, i + 10));
-  }
-  for (const batch of batches) {
-    const results = await Promise.all(batch.map(async (sub) => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(
-          `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${sub}.${domain}`)}&type=A`,
-          { headers: { Accept: 'application/dns-json' }, signal: controller.signal }
-        );
-        clearTimeout(timeout);
-        const data = await res.json() as { Answer?: { data: string }[] };
-        if (data.Answer && data.Answer.length > 0) return sub;
-        return null;
-      } catch { return null; }
-    }));
-    for (const r of results) { if (r) found.push(r); }
-  }
-  return found;
-}
-
 // ─── Main Discovery ────────────────────────────────────────────
 async function discoverSubdomains(domain: string, userSubdomains: string[] = []): Promise<{ subdomains: SubdomainResult[]; checks: InfraResult[] }> {
   const subdomains: SubdomainResult[] = [];
@@ -521,13 +479,12 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
     });
   }
 
-  // ── Step 3: Query all OSINT sources + DNS brute-force in parallel ──
-  const [csResults, ctResults, htResults, avResults, bfResults] = await Promise.all([
+  // ── Step 3: Query all OSINT sources in parallel ──
+  const [csResults, ctResults, htResults, avResults] = await Promise.all([
     osintCertSpotter(domain),
     osintCrtSh(domain),
     osintHackerTarget(domain),
     osintAlienVault(domain),
-    dnsWordlistBrute(domain),
   ]);
 
   const sourceSummary: string[] = [];
@@ -535,10 +492,9 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
   if (ctResults.length > 0) sourceSummary.push(`crt.sh: ${ctResults.length}`);
   if (htResults.length > 0) sourceSummary.push(`HackerTarget: ${htResults.length}`);
   if (avResults.length > 0) sourceSummary.push(`AlienVault: ${avResults.length}`);
-  if (bfResults.length > 0) sourceSummary.push(`DNS Brute: ${bfResults.length}`);
 
-  // ── Step 4: Merge & deduplicate (OSINT + brute-force + user-provided) ──
-  const allDiscovered = new Set<string>([...csResults, ...ctResults, ...htResults, ...avResults, ...bfResults, ...userSubdomains]);
+  // ── Step 4: Merge & deduplicate (OSINT + user-provided) ──
+  const allDiscovered = new Set<string>([...csResults, ...ctResults, ...htResults, ...avResults, ...userSubdomains]);
 
   if (userSubdomains.length > 0) {
     checks.push({
@@ -553,14 +509,14 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
     checks.push({
       name: 'OSINT Subdomain Intelligence',
       status: 'info',
-      detail: `Queried 5 sources - ${allDiscovered.size} unique subdomain(s) discovered (${sourceSummary.join(', ')})`,
+      detail: `Queried 4 sources - ${allDiscovered.size} unique subdomain(s) discovered (${sourceSummary.join(', ')})`,
       risk: 'None', category: 'subdomain',
     });
   } else {
     checks.push({
       name: 'OSINT Subdomain Intelligence',
       status: 'info',
-      detail: 'All 5 sources returned 0 results (CertSpotter, crt.sh, HackerTarget, AlienVault, DNS Brute-Force)',
+      detail: 'All 4 OSINT sources returned 0 results or were unavailable (CertSpotter, crt.sh, HackerTarget, AlienVault)',
       risk: 'None', category: 'subdomain',
     });
   }
