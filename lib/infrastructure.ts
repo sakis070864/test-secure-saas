@@ -332,8 +332,9 @@ async function probeSubdomain(
 // ─── OSINT Source 1: CertSpotter (most reliable) ───────────────
 // SSLMate's Certificate Transparency search engine.
 // Free, no API key, very reliable uptime.
-async function osintCertSpotter(domain: string): Promise<string[]> {
+async function osintCertSpotter(domain: string): Promise<{ subdomains: string[]; hasWildcard: boolean }> {
   const subdomains = new Set<string>();
+  let hasWildcard = false;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -342,12 +343,18 @@ async function osintCertSpotter(domain: string): Promise<string[]> {
       { signal: controller.signal, headers: { 'User-Agent': UA } }
     );
     clearTimeout(timeout);
-    if (!response.ok) return [];
+    if (!response.ok) return { subdomains: [], hasWildcard: false };
 
     const data = await response.json() as { dns_names?: string[] }[];
     for (const entry of data) {
       for (const name of entry.dns_names || []) {
-        const clean = name.trim().toLowerCase().replace(/^\*\./, '');
+        const trimmed = name.trim().toLowerCase();
+        // Detect wildcard certs
+        if (trimmed === `*.${domain}`) {
+          hasWildcard = true;
+          continue;
+        }
+        const clean = trimmed.replace(/^\*\./, '');
         if (clean.endsWith(`.${domain}`) && clean !== domain) {
           const sub = clean.replace(`.${domain}`, '');
           if (sub && !sub.includes('*') && !sub.includes(' ')) {
@@ -357,7 +364,7 @@ async function osintCertSpotter(domain: string): Promise<string[]> {
       }
     }
   } catch { /* CertSpotter unavailable */ }
-  return Array.from(subdomains);
+  return { subdomains: Array.from(subdomains), hasWildcard };
 }
 
 // ─── OSINT Source 2: crt.sh (Certificate Transparency) ─────────
@@ -480,12 +487,14 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
   }
 
   // ── Step 3: Query all OSINT sources in parallel ──
-  const [csResults, ctResults, htResults, avResults] = await Promise.all([
+  const [csResult, ctResults, htResults, avResults] = await Promise.all([
     osintCertSpotter(domain),
     osintCrtSh(domain),
     osintHackerTarget(domain),
     osintAlienVault(domain),
   ]);
+  const csResults = csResult.subdomains;
+  const csWildcard = csResult.hasWildcard;
 
   const sourceSummary: string[] = [];
   if (csResults.length > 0) sourceSummary.push(`CertSpotter: ${csResults.length}`);
@@ -503,6 +512,39 @@ async function discoverSubdomains(domain: string, userSubdomains: string[] = [])
       detail: `${userSubdomains.length} subdomain(s) provided by the user: ${userSubdomains.join(', ')}`,
       risk: 'None', category: 'subdomain',
     });
+  }
+
+  // ── Step 4b: Wildcard cert DNS verification ──
+  // If OSINT found 0 explicit subdomains but CertSpotter detected a wildcard cert (*.domain),
+  // we know subdomains CAN exist. Verify common ones via DNS resolve.
+  if (allDiscovered.size === 0 && csWildcard) {
+    checks.push({
+      name: 'Wildcard Certificate Detected',
+      status: 'info',
+      detail: `Wildcard SSL cert (*.${domain}) found in CT logs. OSINT cannot enumerate subdomains under wildcards - running DNS verification.`,
+      risk: 'None', category: 'subdomain',
+    });
+
+    const WILDCARD_VERIFY = ['www','scan','app','api','mail','blog','shop','dev','staging','portal','admin','cdn','docs','status','support'];
+    const verifyResults = await Promise.all(WILDCARD_VERIFY.map(async (sub) => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(
+          `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${sub}.${domain}`)}&type=A`,
+          { headers: { Accept: 'application/dns-json' }, signal: controller.signal }
+        );
+        clearTimeout(timeout);
+        const data = await res.json() as { Answer?: { data: string }[] };
+        if (data.Answer && data.Answer.length > 0) return sub;
+        return null;
+      } catch { return null; }
+    }));
+    const verified = verifyResults.filter((r): r is string => r !== null);
+    for (const v of verified) allDiscovered.add(v);
+    if (verified.length > 0) {
+      sourceSummary.push(`Wildcard DNS Verify: ${verified.length}`);
+    }
   }
 
   if (sourceSummary.length > 0) {
