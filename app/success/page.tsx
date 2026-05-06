@@ -116,25 +116,57 @@ function SuccessContent() {
       doc.setFontSize(8); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
       doc.text(`${hs.passed} passed | ${hs.failed} failed | ${hs.warnings} warnings | ${result.crawlStats.totalPages} pages | ${result.crawlStats.totalForms} forms`, m+35, y+16);
       y += 28;
+      // Sanitize text for jsPDF Helvetica (Latin-1 only — no Unicode arrows/emojis)
+      const sanitize = (text: string) => text.replace(/[^\x20-\x7E\xA0-\xFF]/g, (ch) => {
+        if (ch === '\u2192' || ch === '\u2190' || ch === '\u2194') return '->';
+        if (ch === '\u2014' || ch === '\u2013') return '-';
+        if (ch === '\u2018' || ch === '\u2019') return "'";
+        if (ch === '\u201C' || ch === '\u201D') return '"';
+        if (ch === '\u2026') return '...';
+        if (ch === '\u2022') return '*';
+        if (ch === '\u2265') return '>=';
+        if (ch === '\u2264') return '<=';
+        return '';
+      });
       // Helper to add section
       const addSec = (title: string, checks: any[]) => {
         if (!checks || checks.length === 0) return;
         if (y > 260) newPage();
         doc.setFillColor(C.bg[0],C.bg[1],C.bg[2]); doc.roundedRect(m, y, cw, 7, 2, 2, 'F');
         doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
-        doc.text(`${title} (${checks.length})`, m+3, y+5); y += 10;
+        doc.text(sanitize(`${title} (${checks.length})`), m+3, y+5); y += 10;
         for (const c of checks) {
           if (y > 280) newPage();
           const sc = c.status==='fail'?C.red:c.status==='warn'?C.yellow:c.status==='pass'?C.green:C.blue;
           doc.setFontSize(6); doc.setFont('helvetica','bold'); doc.setTextColor(sc[0],sc[1],sc[2]);
           doc.text(c.status.toUpperCase(), m+2, y);
           doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(C.black[0],C.black[1],C.black[2]);
-          doc.text((c.name||'').substring(0,50), m+14, y);
+          doc.text(sanitize((c.name||'').substring(0,50)), m+14, y);
           y += 3.5;
           doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(C.mid[0],C.mid[1],C.mid[2]);
-          doc.text((c.detail||'').substring(0,110), m+14, y); y += 4.5;
+          doc.text(sanitize((c.detail||'').substring(0,110)), m+14, y); y += 4.5;
         }
         y += 2;
+      };
+      // Helper: compress attack results (SQLi/XSS/etc.) into summary
+      const addAttackSec = (title: string, checks: any[]) => {
+        if (!checks || checks.length === 0) return;
+        const fails = checks.filter((c: any) => c.status === 'fail');
+        const passes = checks.filter((c: any) => c.status !== 'fail');
+        // Count unique pages tested
+        const uniquePages = new Set(checks.map((c: any) => c.name?.replace(/^(SQLi|XSS|Open Redirect|Path Traversal|IDOR)\s*[—-]\s*/, '') || ''));
+        const compressed: any[] = [];
+        // Show all fails individually (these are real vulnerabilities)
+        for (const f of fails) { compressed.push(f); }
+        // Summarize passes in one line
+        if (passes.length > 0) {
+          compressed.push({
+            name: `${passes.length} tests passed across ${uniquePages.size} page(s)`,
+            status: 'pass',
+            detail: `No vulnerabilities detected in ${passes.length} test(s)`,
+          });
+        }
+        addSec(title, compressed);
       };
       addSec('Security Headers', hs.headers);
       addSec('Exposed Files', hs.exposedFiles);
@@ -144,11 +176,11 @@ function SuccessContent() {
       addSec('Info Disclosure', hs.infoDisclosure);
       addSec('HTTP Methods', hs.httpMethods);
       addSec('HTML Analysis', hs.htmlAnalysis);
-      addSec('SQL Injection Tests', result.attacks.sqli);
-      addSec('XSS Tests', result.attacks.xss);
-      addSec('Open Redirect Tests', result.attacks.openRedirects);
-      addSec('Path Traversal Tests', result.attacks.pathTraversal);
-      addSec('IDOR Tests', result.attacks.idor);
+      addAttackSec('SQL Injection Tests', result.attacks.sqli);
+      addAttackSec('XSS Tests', result.attacks.xss);
+      addAttackSec('Open Redirect Tests', result.attacks.openRedirects);
+      addAttackSec('Path Traversal Tests', result.attacks.pathTraversal);
+      addAttackSec('IDOR Tests', result.attacks.idor);
       // Per-Page Headers — compressed summary instead of listing every header for every page
       if (result.attacks.perPageHeaders.length > 0) {
         const headerMap = new Map<string, { pass: number; fail: number; detail: string }>();

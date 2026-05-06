@@ -98,12 +98,12 @@ async function checkSSL(domain: string): Promise<InfraResult[]> {
 
     const location = response.headers.get('location') || '';
     if (response.status >= 300 && response.status < 400 && location.startsWith('https://')) {
-      results.push({ name: 'HTTP → HTTPS Redirect', status: 'pass', detail: `Redirects to ${location}`, risk: 'None', category: 'ssl' });
+      results.push({ name: 'HTTP to HTTPS Redirect', status: 'pass', detail: `Redirects to ${location}`, risk: 'None', category: 'ssl' });
     } else if (response.status === 200) {
-      results.push({ name: 'HTTP → HTTPS Redirect', status: 'fail', detail: 'Site serves content over HTTP without redirecting to HTTPS', risk: 'High', category: 'ssl' });
+      results.push({ name: 'HTTP to HTTPS Redirect', status: 'fail', detail: 'Site serves content over HTTP without redirecting to HTTPS', risk: 'High', category: 'ssl' });
     }
   } catch {
-    results.push({ name: 'HTTP → HTTPS Redirect', status: 'info', detail: 'HTTP port not responding (may be blocked)', risk: 'None', category: 'ssl' });
+    results.push({ name: 'HTTP to HTTPS Redirect', status: 'info', detail: 'HTTP port not responding (may be blocked)', risk: 'None', category: 'ssl' });
   }
 
   return results;
